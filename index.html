@@ -1,0 +1,1233 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1c7ed6">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Decola METAR">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="icon" href="/icon-192.png">
+<title>Decola METAR — treino de METAR, SPECI e TAF</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="/firebase-config.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f4f7fb; --card:#fff; --ink:#1d2a3a; --muted:#6b7a8c; --line:#dfe6ee;
+  --sky:#1c7ed6; --sky2:#1864ab; --ok:#2fb344; --ok2:#238636; --okbg:#e7f8ea;
+  --bad:#e5484d; --bad2:#b4282d; --badbg:#fdecec; --gold:#f5a524; --hl:#fff1b8;
+  --u1:#1c7ed6; --u2:#7048e8; --u3:#e8590c; --u4:#0ca678; --u5:#c2255c;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Nunito,system-ui,sans-serif;font-size:16px}
+button{font-family:inherit;cursor:pointer}
+.mono{font-family:"JetBrains Mono",ui-monospace,monospace}
+#app{max-width:560px;margin:0 auto;min-height:100vh;padding:calc(env(safe-area-inset-top) + 0px) 0 calc(80px + env(safe-area-inset-bottom))}
+.top{position:sticky;top:0;z-index:5;background:var(--bg);padding:12px 16px 8px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--line)}
+.brand{font-weight:900;font-size:20px;color:var(--sky2);flex:1;letter-spacing:-.3px}
+.stat{display:flex;align-items:center;gap:4px;font-weight:800;font-size:15px}
+.stat .ic{font-size:18px}
+.nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:center;padding-bottom:env(safe-area-inset-bottom);z-index:10}
+.nav div{display:flex;max-width:560px;width:100%}
+.nav button{flex:1;background:none;border:0;padding:10px 4px 12px;font-weight:800;font-size:12px;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:2px}
+.nav button .ic{font-size:22px}
+.nav button.on{color:var(--sky)}
+.wrap{padding:16px}
+.goal{background:#fff;border:2px solid var(--line);border-radius:16px;padding:12px 14px;display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.goal .bar{flex:1;height:12px;background:var(--line);border-radius:8px;overflow:hidden}
+.goal .bar i{display:block;height:100%;background:var(--gold);border-radius:8px}
+.unit{border-radius:16px;color:#fff;padding:14px 16px;margin:22px 0 10px}
+.unit h2{margin:0;font-size:18px;font-weight:900}
+.unit p{margin:2px 0 0;font-size:14px;opacity:.92}
+.path{display:flex;flex-direction:column;align-items:center;gap:14px;padding:6px 0}
+.node{display:flex;flex-direction:column;align-items:center;gap:4px;width:150px}
+.circle{width:72px;height:72px;border-radius:50%;border:0;color:#fff;font-size:28px;font-weight:900;box-shadow:0 6px 0 rgba(0,0,0,.18);position:relative;transition:transform .08s}
+.circle:active{transform:translateY(4px);box-shadow:0 2px 0 rgba(0,0,0,.18)}
+.circle.locked{background:#cfd8e3!important;color:#8a99ab;box-shadow:0 6px 0 #b3bfcd}
+.circle.cur{animation:pulse 1.6s infinite}
+@keyframes pulse{0%,100%{outline:0 solid rgba(28,126,214,.0)}50%{outline:8px solid rgba(28,126,214,.18)}}
+.node .lbl{font-weight:800;font-size:13px;text-align:center;line-height:1.15}
+.stars{font-size:13px;color:var(--gold);letter-spacing:1px;min-height:16px}
+.btn{display:block;width:100%;border:0;border-radius:14px;padding:14px 16px;font-weight:900;font-size:16px;letter-spacing:.3px;text-transform:uppercase;color:#fff;background:var(--sky);box-shadow:0 4px 0 var(--sky2)}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--sky2)}
+.btn.ok{background:var(--ok);box-shadow:0 4px 0 var(--ok2)}
+.btn.bad{background:var(--bad);box-shadow:0 4px 0 var(--bad2)}
+.btn.ghost{background:#fff;color:var(--sky2);border:2px solid var(--line);box-shadow:0 3px 0 var(--line)}
+.btn:disabled{background:#d5dde6;color:#93a1b1;box-shadow:0 4px 0 #bcc7d3}
+.sheet-bg{position:fixed;inset:0;background:rgba(15,25,40,.45);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:#fff;width:100%;max-width:560px;border-radius:20px 20px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom))}
+.sheet h3{margin:0 0 4px;font-size:20px;font-weight:900}
+.sheet p{margin:0 0 14px;color:var(--muted)}
+/* lesson */
+.ltop{display:flex;align-items:center;gap:12px;padding:14px 16px;position:sticky;top:0;background:var(--bg);z-index:5}
+.x{background:none;border:0;font-size:26px;color:var(--muted);padding:0 4px;line-height:1}
+.prog{flex:1;height:14px;background:var(--line);border-radius:10px;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--ok);border-radius:10px;transition:width .3s}
+.hearts{font-weight:900;color:var(--bad);font-size:16px;white-space:nowrap}
+.q{padding:4px 16px 200px}
+.qt{font-size:13px;font-weight:900;color:var(--u2);text-transform:uppercase;letter-spacing:.6px;margin:4px 0 4px}
+.qp{font-size:21px;font-weight:900;margin:0 0 14px;line-height:1.25}
+.code{background:#0f2133;color:#e3ecf5;border-radius:14px;padding:14px;font-family:"JetBrains Mono",monospace;font-size:15px;line-height:2;margin-bottom:12px;word-break:break-word}
+.code .cl{font-family:Nunito;font-weight:800;font-size:11px;color:#8fb3d6;text-transform:uppercase;letter-spacing:.6px;line-height:1.2;margin-bottom:2px}
+.code + .code{margin-top:-4px}
+.tk{display:inline-block;padding:0 3px;border-radius:5px;margin-right:4px}
+.tk.hl{background:var(--hl);color:#2b2100;font-weight:700}
+.tk.pk{background:#1e3a55;border:2px solid #2f5a82;cursor:pointer;padding:0 6px;margin:3px 4px 3px 0;line-height:1.8}
+.tk.pk.sel{background:#fff;color:var(--sky2);border-color:#fff}
+.tk.pk.right{background:var(--ok);border-color:var(--ok);color:#fff}
+.tk.pk.wrong{background:var(--bad);border-color:var(--bad);color:#fff}
+.target{background:#fff;border:2px solid var(--line);border-radius:14px;padding:12px 14px;font-weight:800;margin-bottom:12px}
+.opts{display:flex;flex-direction:column;gap:10px}
+.opt{text-align:left;background:#fff;border:2px solid var(--line);border-radius:14px;padding:13px 14px;font-size:16px;font-weight:700;color:var(--ink);box-shadow:0 3px 0 var(--line)}
+.opt.sel{border-color:var(--sky);background:#e8f3fd;box-shadow:0 3px 0 #a5cdf0}
+.opt.right{border-color:var(--ok);background:var(--okbg);box-shadow:0 3px 0 #9ad8a5}
+.opt.wrong{border-color:var(--bad);background:var(--badbg);box-shadow:0 3px 0 #f2a7a9}
+.opt.mono{font-size:15px}
+.inp{width:100%;font-family:"JetBrains Mono",monospace;font-size:20px;padding:14px;border:2px solid var(--line);border-radius:14px;text-transform:uppercase;background:#fff;color:var(--ink)}
+.inp:focus{outline:none;border-color:var(--sky)}
+.foot{position:fixed;left:0;right:0;bottom:0;z-index:15;display:flex;justify-content:center;background:#fff;border-top:1px solid var(--line)}
+.foot > div{width:100%;max-width:560px;padding:14px 16px calc(14px + env(safe-area-inset-bottom))}
+.foot.good{background:var(--okbg);border-color:#bfe8c6}
+.foot.badf{background:var(--badbg);border-color:#f6c5c6}
+.fb h4{margin:0 0 4px;font-size:19px;font-weight:900}
+.foot.good h4{color:var(--ok2)} .foot.badf h4{color:var(--bad2)}
+.fb p{margin:0 0 12px;font-size:15px;line-height:1.35}
+.fb .mono{background:rgba(0,0,0,.06);padding:1px 5px;border-radius:5px}
+.res{text-align:center;padding:40px 20px}
+.res .big{font-size:64px}
+.res h2{font-size:26px;font-weight:900;margin:8px 0}
+.chips{display:flex;gap:10px;justify-content:center;margin:20px 0 28px}
+.chip{border:2px solid var(--line);border-radius:14px;padding:10px 14px;background:#fff;min-width:96px}
+.chip b{display:block;font-size:22px}
+.chip span{font-size:12px;color:var(--muted);font-weight:800;text-transform:uppercase}
+/* decoder & ref */
+h1.pg{font-size:24px;font-weight:900;margin:4px 0 6px}
+.sub{color:var(--muted);margin:0 0 14px;line-height:1.4}
+textarea.ta{width:100%;min-height:120px;font-family:"JetBrains Mono",monospace;font-size:14px;padding:12px;border:2px solid var(--line);border-radius:14px;resize:vertical;text-transform:uppercase}
+textarea.ta:focus{outline:none;border-color:var(--sky)}
+.row{display:flex;gap:10px;margin:10px 0}
+.row .btn{flex:1;font-size:14px;padding:12px}
+.dec{background:#fff;border:2px solid var(--line);border-radius:14px;margin:14px 0;overflow:hidden}
+.dec .hd{background:#0f2133;color:#e3ecf5;padding:12px 14px;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:14px;line-height:1.6;word-break:break-word}
+.dl{display:flex;gap:10px;padding:10px 14px;border-top:1px solid var(--line);align-items:flex-start}
+.dl .t{font-family:"JetBrains Mono",ui-monospace,monospace;font-weight:700;min-width:92px;font-size:14px;word-break:break-all}
+.dl .c{font-size:11px;font-weight:900;text-transform:uppercase;color:var(--muted);letter-spacing:.4px}
+.dl .x2{font-size:15px;line-height:1.3}
+.dl.unk .t{color:var(--bad)}
+.card{background:#fff;border:2px solid var(--line);border-radius:14px;padding:14px;margin:12px 0}
+.card h3{margin:0 0 8px;font-size:17px;font-weight:900}
+table{width:100%;border-collapse:collapse;font-size:14px}
+td{padding:6px 4px;border-top:1px solid var(--line);vertical-align:top}
+td:first-child{font-family:"JetBrains Mono",ui-monospace,monospace;font-weight:700;white-space:nowrap;padding-right:10px;color:var(--sky2)}
+a{color:var(--sky)}
+.small{font-size:13px;color:var(--muted)}
+.mine{display:flex;gap:8px;align-items:center;border-top:1px solid var(--line);padding:8px 0;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:12px}
+.mine span{flex:1;word-break:break-all}
+.mine button{border:0;background:var(--badbg);color:var(--bad2);border-radius:8px;padding:6px 9px;font-weight:800}
+.big3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.toast{position:fixed;left:50%;top:20px;transform:translateX(-50%);background:#1d2a3a;color:#fff;padding:10px 16px;border-radius:12px;font-weight:800;z-index:50;font-size:14px}
+.login{max-width:420px;margin:0 auto;padding:48px 22px 40px;text-align:center}
+.login h1{font-size:30px;font-weight:900;color:var(--sky2);margin:14px 0 4px}
+.login .sub{margin-bottom:26px}
+.login input{width:100%;font-family:inherit;font-size:16px;padding:14px;border:2px solid var(--line);border-radius:14px;margin-bottom:10px;background:#fff}
+.login input:focus{outline:none;border-color:var(--sky)}
+.gbtn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;background:#fff;border:2px solid var(--line);border-radius:14px;padding:13px;font-weight:800;font-size:16px;color:var(--ink);box-shadow:0 3px 0 var(--line)}
+.or{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px;font-weight:800;margin:18px 0}
+.or:before,.or:after{content:"";flex:1;height:1px;background:var(--line)}
+.lerr{color:var(--bad2);font-weight:700;font-size:14px;min-height:20px;margin:6px 0}
+.link{background:none;border:0;color:var(--sky);font-weight:800;font-size:14px;padding:8px}
+.tag{display:inline-block;font-size:11px;font-weight:900;padding:2px 7px;border-radius:6px;background:#eef3f8;color:var(--muted);text-transform:uppercase;margin-right:6px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script id="logic">
+/* ================= utilidades ================= */
+const rnd=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const chance=p=>Math.random()<p;
+const p2=n=>String(n).padStart(2,'0');
+const p3=n=>String(n).padStart(3,'0');
+const p4=n=>String(n).padStart(4,'0');
+const fmtN=n=>Number(n).toLocaleString('pt-BR');
+const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+const cap=s=>s?s.charAt(0).toUpperCase()+s.slice(1):s;
+const tempStr=n=>(n<0?'M':'')+p2(Math.abs(n));
+const parseT=s=>s.startsWith('M')?-(+s.slice(1)):+s;
+
+/* ================= aeródromos ================= */
+const AIRPORTS=[
+ {icao:'SBPA',name:'Porto Alegre (Salgado Filho)',reg:'sul',rwy:['11','29']},
+ {icao:'SBCO',name:'Canoas (Base Aérea)',reg:'sul'},
+ {icao:'SBCX',name:'Caxias do Sul',reg:'serra'},
+ {icao:'SBSM',name:'Santa Maria',reg:'sul'},
+ {icao:'SBPK',name:'Pelotas',reg:'sul'},
+ {icao:'SBFL',name:'Florianópolis',reg:'sul'},
+ {icao:'SBNF',name:'Navegantes',reg:'sul'},
+ {icao:'SBCT',name:'Curitiba (Afonso Pena)',reg:'serra',rwy:['15','33']},
+ {icao:'SBGR',name:'São Paulo (Guarulhos)',reg:'se',rwy:['10L','28R','10R','28L']},
+ {icao:'SBSP',name:'São Paulo (Congonhas)',reg:'se',rwy:['17R','35L']},
+ {icao:'SBKP',name:'Campinas (Viracopos)',reg:'se',rwy:['15','33']},
+ {icao:'SBCF',name:'Belo Horizonte (Confins)',reg:'se',rwy:['16','34']},
+ {icao:'SBBH',name:'Belo Horizonte (Pampulha)',reg:'se'},
+ {icao:'SBGL',name:'Rio de Janeiro (Galeão)',reg:'se',rwy:['10','28','15','33']},
+ {icao:'SBRJ',name:'Rio de Janeiro (Santos Dumont)',reg:'se'},
+ {icao:'SBBR',name:'Brasília',reg:'co',rwy:['11L','29R','11R','29L']},
+ {icao:'SBGO',name:'Goiânia',reg:'co'},
+ {icao:'SBSV',name:'Salvador',reg:'ne'},
+ {icao:'SBRF',name:'Recife',reg:'ne'},
+ {icao:'SBFZ',name:'Fortaleza',reg:'ne'},
+ {icao:'SBEG',name:'Manaus (Eduardo Gomes)',reg:'n'},
+ {icao:'SBBE',name:'Belém',reg:'n'},
+];
+const AP_BY=Object.fromEntries(AIRPORTS.map(a=>[a.icao,a]));
+
+/* ================= dicionários ================= */
+const DIRS={N:'norte',NE:'nordeste',E:'leste',SE:'sudeste',S:'sul',SW:'sudoeste',W:'oeste',NW:'noroeste'};
+const WXP={DZ:'chuvisco',RA:'chuva',SN:'neve',SG:'grãos de neve',PL:'pelotas de gelo',GR:'granizo',GS:'granizo pequeno',UP:'precipitação desconhecida',IC:'cristais de gelo',BR:'névoa úmida',FG:'nevoeiro',FU:'fumaça',VA:'cinzas vulcânicas',DU:'poeira',SA:'areia',HZ:'névoa seca',PO:'redemoinhos de poeira',SQ:'tempestade (linha de rajadas)',FC:'nuvem funil (tornado/tromba d’água)',SS:'tempestade de areia',DS:'tempestade de poeira'};
+const PRECIP=['DZ','RA','SN','SG','PL','GR','GS','UP','IC'];
+const DESC={MI:'baixo',BC:'em bancos',PR:'parcial',DR:'flutuante (levantado pelo vento, abaixo de 2 m)',BL:'soprado (levantado pelo vento, acima de 2 m)',SH:'pancadas',TS:'trovoada',FZ:'congelante'};
+const AMT={FEW:'Poucas nuvens (1 a 2/8)',SCT:'Nuvens esparsas (3 a 4/8)',BKN:'Céu nublado (5 a 7/8)',OVC:'Céu encoberto (8/8)'};
+const TYPE_TXT={METAR:'METAR — observação meteorológica regular de aeródromo',SPECI:'SPECI — observação especial (emitida fora do horário por mudança significativa)',TAF:'TAF — previsão de aeródromo'};
+const CATS={tipo:'Tipo',local:'Localidade',hora:'Data/hora',status:'Modificador',vento:'Vento',vis:'Visibilidade',rvr:'RVR',tempo:'Tempo presente',nuvens:'Nuvens',temp:'Temperatura',pressao:'Pressão',supl:'Suplementar',tend:'Tendência',validade:'Validade',mudanca:'Grupo de mudança',txtn:'Temp. prevista',rmk:'Observações',unk:'Não reconhecido'};
+const TIPS={
+ vento:'Direção (3 dígitos, de onde o vento SOPRA, em relação ao norte verdadeiro) + velocidade (2 dígitos) + G rajada + KT (nós).',
+ vis:'4 dígitos em metros. 9999 = 10 km ou mais.',
+ rvr:'R + pista / valor em metros. P = acima do máximo medido, M = abaixo do mínimo. U/D/N = tendência.',
+ nuvens:'Quantidade + altura em CENTENAS de pés acima do aeródromo. Ex.: 008 = 800 ft.',
+ tempo:'Intensidade (- leve, sem sinal moderada, + forte) + descritor + fenômeno.',
+ temp:'Temperatura / ponto de orvalho em °C. M = negativo.',
+ pressao:'Q + QNH em hPa.',
+ hora:'DD HH MM Z — dia do mês, hora e minutos em UTC. Brasília = UTC−3.',
+ mudanca:'BECMG = gradual; TEMPO = temporária; FM = a partir de; PROB = probabilidade.',
+};
+
+/* ================= decodificação ================= */
+function wxText(code){
+  const m=code.match(/^(\+|-|VC)?(MI|BC|PR|DR|BL|SH|TS|FZ)?((?:DZ|RA|SN|SG|PL|GR|GS|UP|IC|BR|FG|FU|VA|DU|SA|HZ|PO|SQ|FC|SS|DS)*)$/);
+  if(!m||(!m[2]&&!m[3]))return null;
+  const int=m[1]||'',desc=m[2]||'',ph=(m[3]||'').match(/../g)||[];
+  const names=ph.map(p=>WXP[p]).join(' e ');
+  let t;
+  if(desc==='TS')t='Trovoada'+(names?' com '+names:' (sem precipitação no aeródromo)');
+  else if(desc==='SH')t='Pancadas de '+(names||'precipitação');
+  else if(desc==='FZ')t=cap(names)+' congelante';
+  else if(desc)t=cap(names)+' '+DESC[desc];
+  else t=cap(names);
+  const hasP=ph.some(p=>PRECIP.includes(p));
+  if(int==='-')t+=' — intensidade leve';
+  else if(int==='+')t+=' — intensidade forte';
+  else if(int==='VC')t+=' nas vizinhanças (8 a 16 km)';
+  else if(hasP)t+=' — intensidade moderada';
+  return t;
+}
+function dhTxt(d,h){return `dia ${+d} às ${p2(+h)}Z`}
+function localTime(hh,mm){let h=+hh-3,prev=false;if(h<0){h+=24;prev=true}return `${p2(h)}:${mm}${prev?' do dia anterior':''}`}
+
+/* decodifica o grupo em toks[i]; devolve {n,cat,text} */
+function decodeAt(toks,i,ctx){
+  const t=toks[i],nx=toks[i+1]||'',nx2=toks[i+2]||'';
+  let m;
+  ctx=ctx||{};
+  if(/^(METAR|SPECI|TAF)$/.test(t))return{n:1,cat:'tipo',text:TYPE_TXT[t]};
+  if(t==='AUTO')return{n:1,cat:'status',text:'AUTO — observação totalmente automática, sem intervenção humana'};
+  if(t==='COR')return{n:1,cat:'status',text:'COR — mensagem corrigida (substitui uma já emitida)'};
+  if(t==='AMD')return{n:1,cat:'status',text:'AMD — TAF emendado (previsão corrigida/atualizada)'};
+  if(t==='NIL')return{n:1,cat:'status',text:'NIL — mensagem não disponível (observação/previsão ausente)'};
+  if(t==='CNL')return{n:1,cat:'status',text:'CNL — previsão cancelada'};
+  if(t==='RMK'){return{n:toks.length-i,cat:'rmk',text:(ctx.type==='TAF'&&/^P[A-Z]{2}$/.test(nx)&&toks.length-i===2)?`Observações (RMK). ${nx} = indicativo do meteorologista previsor (prática brasileira)`:'Observações (RMK) — informações adicionais de uso local'}}
+  if(!ctx.icao&&/^[A-Z]{4}$/.test(t)&&!['CAVOK','NOSIG','TEMPO','BECMG'].includes(t)){ctx.icao=t;const a=AP_BY[t];return{n:1,cat:'local',text:`Aeródromo ${t}${a?' — '+a.name:''} (indicador de localidade OACI)`}}
+  if(m=t.match(/^(\d{2})(\d{2})(\d{2})Z$/))return{n:1,cat:'hora',text:`${ctx.type==='TAF'?'Emitido no ':'Observado no '}dia ${+m[1]}, às ${m[2]}:${m[3]} UTC (${localTime(m[2],m[3])} em Brasília)`};
+  if(m=t.match(/^(\d{2})(\d{2})\/(\d{2})(\d{2})$/))return{n:1,cat:'validade',text:`Validade: do ${dhTxt(m[1],m[2])} até o ${dhTxt(m[3],m[4])}`};
+  if(m=t.match(/^(VRB|\d{3})(\d{2,3})(?:G(\d{2,3}))?(KT|MPS)$/)){
+    const u=m[4]==='KT'?'nós':'m/s';
+    if(m[1]==='000'&&+m[2]===0)return{n:1,cat:'vento',text:'Vento calmo'};
+    let s=m[1]==='VRB'?`Vento de direção variável com ${+m[2]} ${u}`:`Vento de ${m[1]}° com ${+m[2]} ${u}`;
+    if(m[3])s+=`, rajadas de ${+m[3]} ${u}`;
+    return{n:1,cat:'vento',text:s};
+  }
+  if(m=t.match(/^(\d{3})V(\d{3})$/))return{n:1,cat:'vento',text:`Direção do vento variando entre ${m[1]}° e ${m[2]}°`};
+  if(t==='CAVOK')return{n:1,cat:'vis',text:'CAVOK — visibilidade de 10 km ou mais, sem nuvens abaixo de 5.000 ft (ou da maior altitude mínima de setor), sem CB/TCU e sem tempo significativo'};
+  if(m=t.match(/^(\d{4})$/)){const n=+m[1];return{n:1,cat:'vis',text:n===9999?'Visibilidade de 10 km ou mais':n===0?'Visibilidade inferior a 50 m':`Visibilidade de ${fmtN(n)} m`}}
+  if(m=t.match(/^(\d{4})(NE|NW|SE|SW|N|E|S|W)$/))return{n:1,cat:'vis',text:`Visibilidade mínima de ${fmtN(+m[1])} m na direção ${DIRS[m[2]]}`};
+  if(m=t.match(/^R(\d{2}[LCR]?)\/([PM])?(\d{4})(?:V([PM])?(\d{4}))?([UDN])?$/)){
+    const q=x=>x==='P'?'mais de ':x==='M'?'menos de ':'';
+    let s=`RVR (alcance visual) da pista ${m[1]}: ${q(m[2])}${fmtN(+m[3])} m`;
+    if(m[5])s+=`, variando até ${q(m[4])}${fmtN(+m[5])} m`;
+    if(m[6])s+={U:', tendência de aumento',D:', tendência de diminuição',N:', sem mudança significativa'}[m[6]];
+    return{n:1,cat:'rvr',text:s};
+  }
+  if(m=t.match(/^(FEW|SCT|BKN|OVC)(\d{3}|\/\/\/)(CB|TCU|\/\/\/)?$/)){
+    let s=AMT[m[1]]+(m[2]==='///'?' — altura da base não medida':` com base a ${fmtN(+m[2]*100)} ft`);
+    if(m[3]==='CB')s+=' — cumulonimbus (CB)';
+    if(m[3]==='TCU')s+=' — cumulus congestus (TCU)';
+    return{n:1,cat:'nuvens',text:s};
+  }
+  if(m=t.match(/^VV(\d{3}|\/\/\/)$/))return{n:1,cat:'nuvens',text:m[1]==='///'?'Céu obscurecido, visibilidade vertical não disponível':`Céu obscurecido — visibilidade vertical de ${fmtN(+m[1]*100)} ft (conta como teto)`};
+  if(t==='NSC')return{n:1,cat:'nuvens',text:'NSC — nenhuma nuvem significativa (nada abaixo de 5.000 ft, sem CB/TCU), mas não se aplica CAVOK'};
+  if(t==='NCD')return{n:1,cat:'nuvens',text:'NCD — nenhuma nuvem detectada pela estação automática'};
+  if(t==='SKC')return{n:1,cat:'nuvens',text:'SKC — céu claro'};
+  if(m=t.match(/^(M?\d{2})\/(M?\d{2})$/))return{n:1,cat:'temp',text:`Temperatura ${parseT(m[1])}°C, ponto de orvalho ${parseT(m[2])}°C`};
+  if(m=t.match(/^Q(\d{4})$/))return{n:1,cat:'pressao',text:`QNH ${+m[1]} hPa`};
+  if(m=t.match(/^A(\d{4})$/))return{n:1,cat:'pressao',text:`Ajuste altimétrico ${m[1].slice(0,2)},${m[1].slice(2)} inHg`};
+  if(t==='WS'){
+    if(nx==='ALL'&&nx2==='RWY')return{n:3,cat:'supl',text:'Tesoura de vento (windshear) em todas as pistas'};
+    if(/^R\d{2}[LCR]?$/.test(nx))return{n:2,cat:'supl',text:`Tesoura de vento (windshear) na pista ${nx.slice(1)}`};
+  }
+  if(m=t.match(/^RE(.+)$/)){const w=wxText(m[1]);if(w)return{n:1,cat:'supl',text:`Tempo recente: ${w.replace(/ — intensidade (leve|moderada|forte)/,'')} (ocorreu desde a última observação, já não ocorre)`}}
+  if(t==='NSW')return{n:1,cat:'tempo',text:'NSW — fim do tempo significativo (nenhum tempo significativo)'};
+  if(t==='NOSIG')return{n:1,cat:'tend',text:'NOSIG — nenhuma mudança significativa prevista para as próximas 2 horas'};
+  if(m=t.match(/^FM(\d{2})(\d{2})(\d{2})$/))return{n:1,cat:'mudanca',text:`FM — a partir do ${dhTxt(m[1],m[2])}${m[3]!=='00'?':'+m[3]:''}, mudança rápida: as condições a seguir substituem as anteriores`};
+  if(m=t.match(/^(FM|TL|AT)(\d{2})(\d{2})$/))return{n:1,cat:'tend',text:{FM:'a partir das ',TL:'até as ',AT:'às '}[m[1]]+`${m[2]}:${m[3]} UTC`};
+  if(t==='BECMG'||t==='TEMPO'){
+    const kind=t==='BECMG'?'BECMG — mudança gradual':'TEMPO — flutuações temporárias';
+    if(m=nx.match(/^(\d{2})(\d{2})\/(\d{2})(\d{2})$/))return{n:2,cat:'mudanca',text:`${kind} entre o ${dhTxt(m[1],m[2])} e o ${dhTxt(m[3],m[4])}${t==='BECMG'?' (depois disso a nova condição predomina)':' (cada uma com menos de 1 h, somando menos da metade do período)'}`};
+    return{n:1,cat:'tend',text:kind+' prevista (tendência para as próximas 2 horas)'};
+  }
+  if(m=t.match(/^PROB(30|40)$/)){
+    let n=1,tmp='';
+    if(nx==='TEMPO'){n=2;tmp=' de flutuações temporárias'}
+    const per=toks[i+n]||'';const pm=per.match(/^(\d{2})(\d{2})\/(\d{2})(\d{2})$/);
+    if(pm){n++;return{n,cat:'mudanca',text:`PROB${m[1]} — probabilidade de ${m[1]}%${tmp} entre o ${dhTxt(pm[1],pm[2])} e o ${dhTxt(pm[3],pm[4])}`}}
+    return{n,cat:'mudanca',text:`Probabilidade de ${m[1]}%${tmp}`};
+  }
+  if(m=t.match(/^(TX|TN)(M?\d{2})\/(\d{2})(\d{2})Z$/))return{n:1,cat:'txtn',text:`Temperatura ${m[1]==='TX'?'máxima':'mínima'} prevista de ${parseT(m[2])}°C no ${dhTxt(m[3],m[4])}`};
+  const w=wxText(t);
+  if(w)return{n:1,cat:'tempo',text:w};
+  return{n:1,cat:'unk',text:'Grupo não reconhecido (pode ser um formato regional ou erro de digitação)'};
+}
+
+function cleanRaw(raw){
+  return raw.toUpperCase().replace(/^\s*\d{10}\s*-\s*/,'').replace(/=+\s*$/,'').replace(/\s+/g,' ').trim();
+}
+function parseReport(raw){
+  const s=cleanRaw(raw);
+  const toks=s.split(' ').filter(Boolean);
+  let type=toks[0];
+  if(!/^(METAR|SPECI|TAF)$/.test(type))type=toks.some(x=>/^\d{4}\/\d{4}$/.test(x))?'TAF':'METAR';
+  const ctx={type,icao:null},items=[];
+  let i=0,grp='Base';
+  while(i<toks.length){
+    const d=decodeAt(toks,i,ctx);
+    const rawg=toks.slice(i,i+d.n).join(' ');
+    if(d.cat==='mudanca')grp=rawg;
+    items.push({raw:rawg,cat:d.cat,text:d.text,grp});
+    i+=d.n;
+  }
+  return{raw:s,type,items,icao:ctx.icao};
+}
+function decodeSingle(tok,type){const r=decodeAt(tok.split(' '),0,{type:type||'METAR',icao:'XXXX'});return r.text}
+
+/* ================= análise prática ================= */
+function ceilingOf(items){
+  let c=null;
+  for(const it of items){
+    if(it.grp!=='Base')continue;
+    let m=it.raw.match(/^(BKN|OVC)(\d{3})/)||it.raw.match(/^(VV)(\d{3})$/);
+    if(m){const h=+m[2]*100;if(h<20000&&(c===null||h<c))c=h}
+  }
+  return c;
+}
+function visOf(items){
+  for(const it of items){if(it.grp!=='Base')continue;if(it.raw==='CAVOK')return 10000;const m=it.raw.match(/^(\d{4})$/);if(m)return +m[1]===9999?10000:+m[1]}
+  return null;
+}
+
+/* ================= gerador ================= */
+function cloudSort(cl){return cl.sort((a,b)=>a.h-b.h).filter((c,i,arr)=>i===0||c.h!==arr[i-1].h)}
+function genWeather(ap,scen){
+  const R={sul:[14,30],serra:[10,26],se:[17,31],co:[19,33],ne:[24,31],n:[24,33]}[ap.reg];
+  const W={wind:{dir:rnd(1,36)*10,spd:rnd(3,13),gust:null},vis:9999,cavok:false,wx:[],clouds:[],rvr:[],visMin:null,nsc:false,vv:null,re:null,ws:null,trend:null};
+  let t=rnd(R[0],R[1]),dew=t-rnd(4,12),q=rnd(1009,1021);
+  const C=(amt,h,type)=>W.clouds.push({amt,h,type:type||''});
+  switch(scen){
+  case 'bom':
+    if(chance(.45))W.cavok=true;
+    else{W.vis=9999;C(pick(['FEW','FEW','SCT']),rnd(18,45));if(chance(.4))C(pick(['SCT','BKN']),rnd(60,120))}
+    q=rnd(1014,1024);break;
+  case 'nublado':
+    W.vis=pick([9999,9999,8000,7000,6000]);
+    if(chance(.4))C('FEW',rnd(5,9));
+    C('BKN',rnd(8,25));if(chance(.5))C(pick(['BKN','OVC']),rnd(30,80));
+    if(W.vis<9999&&chance(.6))W.wx.push(pick(['-DZ','-RA','DZ','BR']));
+    dew=t-rnd(1,4);break;
+  case 'chuva':
+    W.vis=pick([2000,2500,3000,4000,5000,6000]);
+    W.wx.push(pick(['-RA','RA','RA','+RA','-SHRA','SHRA','+SHRA']));
+    if(W.vis<=5000&&chance(.4))W.wx.push('BR');
+    if(chance(.4))C('FEW',rnd(4,8));
+    C('BKN',rnd(5,15));
+    if(W.wx[0].includes('SH')&&chance(.6))C(pick(['SCT','FEW']),rnd(20,35),'TCU');
+    C('OVC',rnd(40,90));
+    W.wind.spd=rnd(6,16);dew=t-rnd(0,2);q=rnd(1004,1014);break;
+  case 'nevoeiro':{
+    t=rnd(R[0],R[0]+6);dew=t-rnd(0,1);
+    W.wind=chance(.5)?{calm:true}:{dir:rnd(1,36)*10,spd:rnd(2,5)};
+    const sub=pick(['fg','fg','br','raso']);
+    if(sub==='fg'){W.vis=rnd(1,9)*100;W.wx.push('FG');
+      if(chance(.4))W.vv=rnd(1,3);else C(pick(['OVC','BKN']),rnd(1,3));}
+    else if(sub==='br'){W.vis=rnd(2,8)*500;W.wx.push('BR');C(pick(['BKN','OVC']),rnd(3,9))}
+    else{W.vis=pick([9999,8000,6000]);W.wx.push(pick(['BCFG','MIFG','PRFG']));C('FEW',rnd(2,6))}
+    if(W.vis<1500&&ap.rwy){const rw=pick(ap.rwy);let v=Math.round(W.vis*(1+Math.random())/50)*50;
+      W.rvr.push(`R${rw}/${v>2000?'P2000':p4(Math.max(v,50))}${pick(['','U','D','N'])}`)}
+    break;}
+  case 'trovoada':{
+    const w=chance(.35)?pick(['TSGR','+TSGR','TSRAGR','+TSRAGR','SHGR','TSGR BR']):pick(['TS','TSRA','TSRA','-TSRA','+TSRA','VCTS','+TSRA BR']);
+    W.wx=w.split(' ');
+    W.vis=w==='TS'||w==='VCTS'?9999:w.startsWith('+')?pick([1000,1500,2000,2500]):pick([3000,4000,5000,6000,8000]);
+    if(W.vis<5000&&chance(.3))W.visMin=`${p4(Math.max(W.vis-pick([500,800,1000]),300))}${pick(['N','NE','E','SE','S','SW','W','NW'])}`;
+    if(chance(.5))C('FEW',rnd(10,18));
+    C(pick(['FEW','SCT','BKN']),rnd(20,35),'CB');
+    if(chance(.5))C('BKN',rnd(70,100));
+    W.wind.spd=rnd(8,20);W.wind.gust=W.wind.spd+rnd(10,22);
+    if(ap.rwy&&chance(.25))W.ws=chance(.7)?'WS R'+pick(ap.rwy):'WS ALL RWY';
+    t=rnd(R[1]-6,R[1]);dew=t-rnd(2,6);q=rnd(1004,1012);break;}
+  case 'nevoa':
+    W.vis=pick([3000,3500,4000,4500,5000]);W.wx.push(chance(.75)?'HZ':'FU');
+    if(chance(.5))W.nsc=true;else C('FEW',rnd(30,45));
+    t=rnd(R[1]-5,R[1]);dew=t-rnd(12,20);break;
+  case 'ventoso':
+    W.wind.spd=rnd(15,24);W.wind.gust=W.wind.spd+rnd(10,15);W.wind.var=true;
+    C('SCT',rnd(25,45));break;
+  case 'frio':
+    t=rnd(0,8);dew=t-rnd(0,4);q=rnd(1018,1030);
+    if(chance(.5))W.cavok=true;else{W.vis=pick([9999,9999,4000,1500]);if(W.vis<5000){W.wx.push(W.vis<1000?'FG':'BR')}C(pick(['FEW','SCT','BKN']),rnd(3,20))}
+    break;
+  case 'pos':
+    W.vis=pick([9999,9999,8000]);C('SCT',rnd(12,25));C('BKN',rnd(30,60));
+    W.re=pick(['RERA','RETSRA','RESHRA','REDZ','RETS']);dew=t-rnd(1,4);break;
+  }
+  if(W.wind.calm){}
+  else{
+    if(W.wind.spd<=3&&chance(.35))W.wind.vrb=true;
+    if((W.wind.var||(W.wind.spd>=4&&chance(.12)))&&!W.wind.vrb){
+      const a=rnd(3,6)*10,b=rnd(3,6)*10;
+      W.wind.vf=((W.wind.dir-a+360)%360)||360;W.wind.vt=((W.wind.dir+b)%360)||360;
+    }
+  }
+  W.clouds=cloudSort(W.clouds);
+  W.t=t;W.dew=Math.min(dew,t);W.q=q;
+  if(scen==='bom'&&chance(.1))W.trend='NOSIG';
+  return W;
+}
+function windStr(w){if(w.calm)return'00000KT';return(w.vrb?'VRB':p3(w.dir))+p2(w.spd)+(w.gust?'G'+p2(w.gust):'')+'KT'}
+function cloudStr(c){return c.amt+p3(c.h)+(c.type||'')}
+function bodyStr(W,forTaf){
+  const a=[windStr(W.wind)];
+  if(!forTaf&&W.wind.vf)a.push(p3(W.wind.vf)+'V'+p3(W.wind.vt));
+  if(W.cavok)a.push('CAVOK');
+  else{
+    a.push(p4(W.vis));
+    if(!forTaf&&W.visMin)a.push(W.visMin);
+    if(!forTaf)a.push(...W.rvr);
+    a.push(...W.wx);
+    if(W.vv)a.push('VV'+p3(W.vv));
+    else if(W.clouds.length)a.push(...W.clouds.map(cloudStr));
+    else a.push('NSC');
+  }
+  return a;
+}
+function chooseAirport(){return pick(AIRPORTS)}
+function nowUTC(){return new Date()}
+function genMETAR(opt){
+  opt=opt||{};
+  const ap=opt.ap||chooseAirport();
+  const scen=opt.scen||pick(['bom','bom','bom','nublado','nublado','chuva','nevoeiro','trovoada','nevoa','ventoso','pos'].concat(ap.reg==='sul'||ap.reg==='serra'?['frio']:[]));
+  const W=opt.W||genWeather(ap,scen);
+  const d=nowUTC();
+  const day=opt.day||d.getUTCDate(),hh=opt.hh!=null?opt.hh:rnd(0,23);
+  const speci=!!opt.speci;
+  const mm=speci?(opt.mm!=null?opt.mm:rnd(5,55)):0;
+  const a=[speci?'SPECI':'METAR',ap.icao,p2(day)+p2(hh)+p2(mm)+'Z'];
+  if(opt.auto)a.push('AUTO');
+  a.push(...bodyStr(W,false));
+  a.push(tempStr(W.t)+'/'+tempStr(W.dew),'Q'+W.q);
+  if(W.re)a.push(W.re);
+  if(W.ws)a.push(W.ws);
+  if(W.trend)a.push(W.trend);
+  return a.join(' ')+'=';
+}
+function genTAF(){
+  const ap=chooseAirport();
+  const slot=pick([[23,0],[5,6],[11,12],[17,18]]);
+  const now=nowUTC();
+  const start=new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate(),slot[1]));
+  const at=(off)=>new Date(start.getTime()+off*3600e3);
+  const dh=(off,end)=>{const x=at(off);let D=x.getUTCDate(),H=x.getUTCHours();if(end&&H===0){const y=at(off-24);D=y.getUTCDate();H=24}return p2(D)+p2(H)};
+  const issue=at(-1);
+  const W=genWeather(ap,pick(['bom','bom','nublado','nevoa']));
+  W.rvr=[];W.visMin=null;W.wind.vf=null;W.trend=null;W.re=null;W.ws=null;
+  const a=['TAF',ap.icao,p2(issue.getUTCDate())+p2(issue.getUTCHours())+'00Z',dh(0)+'/'+dh(24,true)];
+  a.push(...bodyStr(W,true));
+  // TX/TN
+  const offFor=h=>{for(let k=0;k<=23;k++)if((slot[1]+k)%24===h)return k;return 12};
+  const tx=W.t+rnd(2,5),tn=W.t-rnd(4,9);
+  const kx=offFor(pick([17,18,19])),kn=offFor(pick([8,9,10]));
+  a.push(`TX${tempStr(tx)}/${dh(kx)}Z`,`TN${tempStr(tn)}/${dh(kn)}Z`);
+  // grupos de mudança
+  const pool=shuffle(['fg','ts','vento','nuvens','fm','prob']).slice(0,rnd(1,3));
+  const ch=[];
+  for(const k of pool){
+    if(k==='fg'){const s=offFor(pick([6,7,8]));const e=Math.min(s+rnd(3,5),24);
+      ch.push({s,txt:`${pick(['TEMPO','TEMPO','BECMG'])} ${dh(s)}/${dh(e,true)} ${pick([`${p4(rnd(2,8)*100)} FG ${pick(['BKN001','BKN002','OVC002','VV002'])}`,`${p4(rnd(2,8)*500)} BR BKN00${rnd(4,8)}`])}`});
+      if(chance(.5)&&e<23)ch.push({s:e,txt:`BECMG ${dh(e)}/${dh(e+2,true)} 9999 ${pick(['SCT015','SCT020','BKN025','FEW030'])}`});}
+    if(k==='ts'){const s=offFor(pick([17,18,19,20]));const e=Math.min(s+rnd(3,5),24);
+      ch.push({s,txt:`${pick(['TEMPO','PROB30','PROB40','PROB30 TEMPO','PROB40 TEMPO'])} ${dh(s)}/${dh(e,true)} ${chance(.4)?p3(rnd(1,36)*10)+p2(rnd(12,18))+'G'+p2(rnd(25,35))+'KT ':''}${pick(['4000','5000','3000','6000'])} ${pick(['TSRA','-TSRA','+TSRA','TS'])} ${pick(['BKN030CB','SCT025CB','BKN020CB','FEW030CB'])}`});}
+    if(k==='vento'){const s=rnd(2,16);ch.push({s,txt:`BECMG ${dh(s)}/${dh(s+2,true)} ${p3(rnd(1,36)*10)}${p2(rnd(5,15))}KT`});}
+    if(k==='nuvens'){const s=rnd(2,18);ch.push({s,txt:`BECMG ${dh(s)}/${dh(s+2,true)} ${pick(['BKN010','BKN008','OVC012','BKN015','SCT030'])}`});}
+    if(k==='fm'){const s=rnd(6,20);const x=at(s);ch.push({s,txt:`FM${p2(x.getUTCDate())}${p2(x.getUTCHours())}00 ${pick(['18','20','16','15'])}0${rnd(10,16)}KT ${pick(['6000 -RA','5000 RA','8000 -DZ','9999'])} ${pick(['BKN012','BKN010 OVC030','OVC015','SCT010 BKN020'])}`});}
+    if(k==='prob'){const s=rnd(3,18);const e=Math.min(s+rnd(2,4),24);ch.push({s,txt:`${pick(['PROB30','PROB40'])} ${dh(s)}/${dh(e,true)} ${pick(['3000 SHRA BKN015','2000 BR BKN005','4000 RA BKN010'])}`});}
+  }
+  const used=new Set();
+  ch.sort((x,y)=>x.s-y.s).forEach(c=>{const per=(c.txt.match(/\d{4}\/\d{4}/)||[c.txt])[0];if(used.has(per))return;used.add(per);a.push(c.txt)});
+  a.push('RMK P'+pick('ABCDEFGHJKLMNPRSTUVW'.split(''))+pick('ABCDEFGHJKLMNPRSTUVW'.split('')));
+  return a.join(' ')+'=';
+}
+/* par METAR -> SPECI com motivo */
+const MOTIVOS={
+  vis:'A visibilidade caiu abaixo de um valor-limite (ex.: 3.000 ou 1.500 m)',
+  teto:'O teto (BKN/OVC) baixou abaixo de um valor-limite (ex.: 1.000 ou 500 ft)',
+  ts:'Início de trovoada',
+  vento:'Mudança significativa na direção/velocidade do vento, com rajadas',
+};
+function genSpeciPair(){
+  const ap=chooseAirport();
+  const W=genWeather(ap,pick(['bom','nublado']));
+  W.cavok=false;if(!W.clouds.length)W.clouds=[{amt:'SCT',h:rnd(25,40),type:''}];W.vis=9999;W.wx=[];W.trend=null;W.re=null;W.ws=null;W.rvr=[];W.visMin=null;W.vv=null;W.nsc=false;
+  W.clouds=W.clouds.filter(c=>c.h>=20);if(!W.clouds.length)W.clouds=[{amt:'SCT',h:30,type:''}];
+  W.wind={dir:rnd(1,36)*10,spd:rnd(4,9),gust:null};
+  const hh=rnd(0,22),day=nowUTC().getUTCDate();
+  const m1=genMETAR({ap,W,hh,day});
+  const W2=JSON.parse(JSON.stringify(W));
+  const mot=pick(Object.keys(MOTIVOS));
+  if(mot==='vis'){W2.vis=pick([1200,1400,2500,2800]);W2.wx=[pick(['BR','-RA','RA'])];}
+  if(mot==='teto'){W2.clouds=cloudSort([{amt:pick(['BKN','OVC']),h:rnd(4,8),type:''},...W.clouds]);}
+  if(mot==='ts'){W2.wx=['TS'];W2.clouds=cloudSort([{amt:'SCT',h:rnd(25,35),type:'CB'},...W.clouds.filter(c=>c.h<25||c.h>35)]);}
+  if(mot==='vento'){W2.wind={dir:((W.wind.dir+pick([90,120,150]))%360)||360,spd:rnd(15,22),gust:null};W2.wind.gust=W2.wind.spd+rnd(10,15);}
+  const m2=genMETAR({ap,W:W2,hh,day,speci:true});
+  return{metar:m1,speci:m2,mot};
+}
+function genAny(kind){
+  if(kind==='taf')return genTAF();
+  if(kind==='speci')return genMETAR({speci:true,scen:pick(['trovoada','nevoeiro','chuva','ventoso','nublado'])});
+  return genMETAR();
+}
+</script>
+
+<script id="ui">
+/* ================= estado ================= */
+const KEY0='decola-metar.v1';
+const defState=()=>({xp:0,streak:0,last:null,done:{},mist:[],mine:[],daily:{date:null,xp:0},unlockAll:false});
+let S=defState(),USER=null,AUTH_READY=false,DB=null,AUTH=null,cloudTimer=null;
+const FB_ON=!!(window.firebase&&window.FIREBASE_CONFIG&&window.FIREBASE_CONFIG.apiKey&&!/COLE/.test(window.FIREBASE_CONFIG.apiKey));
+const keyFor=()=>USER?KEY0+'.'+USER.uid:KEY0;
+function loadLocal(k){try{return JSON.parse(localStorage.getItem(k)||'null')}catch(e){return null}}
+if(!FB_ON){const o=loadLocal(KEY0);if(o)S=Object.assign(defState(),o)}
+function save(){
+  try{localStorage.setItem(keyFor(),JSON.stringify(S))}catch(e){}
+  if(USER&&DB){clearTimeout(cloudTimer);cloudTimer=setTimeout(pushCloud,1200)}
+}
+function pushCloud(){
+  if(!USER||!DB)return;
+  DB.collection('users').doc(USER.uid).set({state:JSON.stringify(S),xp:S.xp,name:USER.displayName||'',email:USER.email||'',updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}).catch(e=>console.log('cloud',e));
+}
+async function pullCloud(){
+  let cloud=null;
+  try{const d=await DB.collection('users').doc(USER.uid).get();if(d.exists&&d.data().state)cloud=JSON.parse(d.data().state)}catch(e){console.log('pull',e)}
+  const local=loadLocal(keyFor());
+  const legacy=loadLocal(KEY0);
+  let best=cloud||local||null;
+  if(cloud&&local&&(local.xp||0)>(cloud.xp||0))best=local;
+  if(!best&&legacy&&legacy.xp){best=legacy;toast('Progresso deste aparelho importado para sua conta')}
+  S=Object.assign(defState(),best||{});
+  save();
+}
+function initAuth(){
+  if(!FB_ON){AUTH_READY=true;render();return}
+  firebase.initializeApp(window.FIREBASE_CONFIG);
+  AUTH=firebase.auth();DB=firebase.firestore();
+  AUTH.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(()=>{});
+  AUTH.getRedirectResult().catch(e=>{window._lerr=authErr(e)});
+  AUTH.onAuthStateChanged(async u=>{
+    USER=u;
+    if(u){$('#app').innerHTML='<div class="login"><div class="big">✈️</div><p class="sub">Carregando seu progresso…</p></div>';await pullCloud()}
+    else S=defState();
+    AUTH_READY=true;L=null;tab='home';render();
+  });
+}
+function authErr(e){
+  const m={'auth/invalid-email':'E-mail inválido.','auth/missing-password':'Digite a senha.','auth/weak-password':'A senha precisa ter pelo menos 6 caracteres.','auth/email-already-in-use':'Este e-mail já tem conta. Use "Entrar".','auth/invalid-credential':'E-mail ou senha incorretos.','auth/wrong-password':'E-mail ou senha incorretos.','auth/user-not-found':'Não existe conta com este e-mail.','auth/too-many-requests':'Muitas tentativas. Aguarde um pouco.','auth/network-request-failed':'Sem internet. Tente de novo.','auth/popup-closed-by-user':'Login cancelado.','auth/unauthorized-domain':'Domínio não autorizado no Firebase (adicione em Authentication > Settings > Authorized domains).'};
+  return m[e&&e.code]||('Erro: '+((e&&e.message)||e));
+}
+let loginMode='entrar';
+function loginView(){
+  const cad=loginMode==='criar';
+  return `<div class="login"><div style="display:flex;justify-content:center">${epaulet(4,false,46)}</div>
+  <h1>Decola METAR</h1><p class="sub">Treine METAR, SPECI e TAF e suba na hierarquia da aviação.</p>
+  <button class="gbtn" onclick="loginGoogle()"><svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 38.2 44 33 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>Entrar com Google</button>
+  <div class="or">ou com e-mail</div>
+  ${cad?'<input id="lname" placeholder="Seu nome" autocomplete="name">':''}
+  <input id="lemail" type="email" placeholder="E-mail" autocomplete="email">
+  <input id="lpass" type="password" placeholder="Senha${cad?' (mín. 6 caracteres)':''}" autocomplete="${cad?'new-password':'current-password'}" onkeydown="if(event.key==='Enter')loginEmail()">
+  <div class="lerr" id="lerr">${window._lerr?esc(window._lerr):''}</div>
+  <button class="btn ok" onclick="loginEmail()">${cad?'Criar conta':'Entrar'}</button>
+  <div style="margin-top:10px"><button class="link" onclick="loginMode='${cad?'entrar':'criar'}';window._lerr='';render()">${cad?'Já tenho conta: entrar':'Não tem conta? Criar agora'}</button>${cad?'':'<br><button class="link" onclick="resetPass()">Esqueci minha senha</button>'}</div>
+  </div>`;
+}
+function setLerr(m){window._lerr=m;const e=$('#lerr');if(e)e.textContent=m}
+async function loginGoogle(){
+  const pr=new firebase.auth.GoogleAuthProvider();
+  try{await AUTH.signInWithPopup(pr)}
+  catch(e){if(['auth/popup-blocked','auth/operation-not-supported-in-this-environment','auth/cancelled-popup-request'].includes(e.code)){AUTH.signInWithRedirect(pr)}else setLerr(authErr(e))}
+}
+async function loginEmail(){
+  const em=($('#lemail').value||'').trim(),pw=$('#lpass').value||'';
+  setLerr('');
+  try{
+    if(loginMode==='criar'){const nm=($('#lname').value||'').trim();const c=await AUTH.createUserWithEmailAndPassword(em,pw);if(nm){await c.user.updateProfile({displayName:nm});USER=AUTH.currentUser;pushCloud()}}
+    else await AUTH.signInWithEmailAndPassword(em,pw);
+  }catch(e){setLerr(authErr(e))}
+}
+async function resetPass(){
+  const em=($('#lemail').value||'').trim();
+  if(!em){setLerr('Digite seu e-mail acima e toque de novo em "Esqueci minha senha".');return}
+  try{await AUTH.sendPasswordResetEmail(em);setLerr('');toast('Enviamos um link para '+em)}catch(e){setLerr(authErr(e))}
+}
+function logout(){sheet(`<h3>Sair da conta?</h3><p>Seu progresso continua salvo na nuvem.</p><button class="btn bad" onclick="closeSheet();pushCloud();AUTH.signOut()">Sair</button><div style="height:10px"></div><button class="btn ghost" onclick="closeSheet()">Cancelar</button>`)}
+function accountCard(){
+  if(!USER)return '';
+  return `<div class="card" style="display:flex;align-items:center;gap:12px"><div style="width:44px;height:44px;border-radius:50%;background:var(--sky);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:20px;overflow:hidden">${USER.photoURL?`<img src="${esc(USER.photoURL)}" width="44" height="44" referrerpolicy="no-referrer">`:esc((USER.displayName||USER.email||'?')[0].toUpperCase())}</div><div style="flex:1;min-width:0"><b>${esc(USER.displayName||'Piloto')}</b><div class="small" style="overflow:hidden;text-overflow:ellipsis">${esc(USER.email||'')}</div></div><button class="btn ghost" style="width:auto;padding:10px 14px;font-size:13px" onclick="logout()">Sair</button></div>`;
+}
+const today=()=>{const d=new Date();return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())};
+const GOAL=30;
+const RANKS=[
+ {n:'Aluno-piloto',x:0,s:0,d:'Começando a jornada'},
+ {n:'Piloto Privado (PP)',x:80,s:1,d:'Primeira berimbela!'},
+ {n:'Piloto Comercial (PC)',x:250,s:2,d:'Duas berimbelas'},
+ {n:'Primeiro Oficial',x:600,s:3,d:'Três berimbelas, assento da direita'},
+ {n:'Comandante',x:1200,s:4,d:'Quatro berimbelas, assento da esquerda'},
+ {n:'Comandante Instrutor',x:2500,s:4,star:true,d:'Quatro berimbelas e a estrela de instrutor'},
+];
+function rankIdx(xp){let r=0;RANKS.forEach((k,i)=>{if(xp>=k.x)r=i});return r}
+function epaulet(s,star,w){
+  w=w||40;const h=w*1.9;let g='';
+  for(let i=0;i<s;i++){const y=h-10-i*(h*0.12);g+=`<rect x="5" y="${y-h*0.07}" width="${w-10}" height="${h*0.075}" rx="1.5" fill="#e8b830"/>`}
+  const top=star?`<text x="${w/2}" y="${w*0.47}" font-size="${w*0.45}" text-anchor="middle" fill="#e8b830">★</text>`:`<circle cx="${w/2}" cy="${w*0.3}" r="${w*0.12}" fill="#c9a227"/>`;
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block"><path d="M3 ${w*0.45} Q3 3 ${w/2} 3 Q${w-3} 3 ${w-3} ${w*0.45} L${w-3} ${h-3} L3 ${h-3} Z" fill="#14233a" stroke="#0a1422" stroke-width="2"/>${top}${g}</svg>`;
+}
+function dailyXP(){return S.daily.date===today()?S.daily.xp:0}
+
+/* ================= conteúdo conceitual ================= */
+const CONC={
+ ident:[
+  ['Em que referência de horário estão os horários do METAR e do TAF?',['UTC (o "Z" no fim do grupo)','Horário de Brasília','Hora local do aeródromo','UTC−3'],'Todos os horários em mensagens meteorológicas aeronáuticas são em UTC ("Zulu"). Brasília hoje = UTC−3.'],
+  ['No Brasil, com que frequência o METAR é emitido?',['De hora em hora, na hora cheia','A cada 3 horas','A cada 30 minutos, sempre','Só quando o tempo muda'],'O METAR é a observação regular horária. Mudanças importantes entre um METAR e outro geram um SPECI.'],
+  ['O que indica o modificador COR?',['Mensagem corrigida, substituindo uma já emitida','Céu com cobertura total','Observação feita por radar','Correção do QNH'],'COR = correção de uma mensagem já transmitida.'],
+  ['O que indica AUTO logo após a data/hora?',['Observação totalmente automática, sem observador humano','Previsão automática para as próximas 2 h','Aeródromo operando só por instrumentos','Vento medido automaticamente, o resto manual'],'AUTO = estação meteorológica automática gerou o boletim sozinha.'],
+  ['Nos indicadores como SBPA, as duas primeiras letras significam:',['S = América do Sul, B = Brasil','S = Sul, B = Base','S = Serviço, B = Brasileiro','São fixas para aeroportos internacionais'],'Indicadores OACI: 1ª letra = região, 2ª = país. SB.., SD.., SI.., SJ.., SN.., SS.., SW.. são brasileiros.'],
+ ],
+ vento:[
+  ['A direção do vento no METAR é informada em relação ao:',['Norte verdadeiro','Norte magnético','Eixo da pista','Norte da carta'],'METAR/TAF usam norte verdadeiro. Já a torre e o ATIS informam vento magnético.'],
+  ['A direção do vento indica:',['De onde o vento sopra','Para onde o vento sopra','A proa recomendada para pouso','A pista em uso'],'27010KT = vento VINDO de 270° (oeste).'],
+  ['Quando aparece o grupo de rajada (G)?',['Quando a velocidade máxima supera a média em 10 kt ou mais','Sempre que o vento passa de 15 kt','Quando há trovoada','Quando o vento muda de direção'],'Rajadas são informadas quando o pico excede a média em 10 kt ou mais.'],
+  ['O grupo 340V060 significa:',['Direção do vento variando entre 340° e 060°','Vento de 340° com 60 kt','Visibilidade variando de 340 a 600 m','Vento de 340° com rajadas de 60 kt'],'dddVddd aparece quando a direção varia 60° ou mais (com vento de 3 kt ou mais).'],
+  ['VRB02KT significa:',['Vento fraco, de direção variável, com 2 kt','Vento de 020° com rajadas','Vento variando 2° de direção','Vento com rajadas variáveis'],'VRB é usado para vento fraco (3 kt ou menos) com direção variável, ou quando não dá para definir uma direção (ex.: trovoada).'],
+ ],
+ vis:[
+  ['O grupo 9999 significa:',['Visibilidade de 10 km ou mais','Visibilidade de 9.999 m exatamente','Visibilidade ilimitada e céu claro','Visibilidade não medida'],'9999 = 10 km ou mais.'],
+  ['CAVOK exige, entre outras coisas:',['Vis. ≥ 10 km, sem nuvens abaixo de 5.000 ft, sem CB/TCU e sem tempo significativo','Céu totalmente limpo, sem nenhuma nuvem','Vis. ≥ 5 km e teto ≥ 1.500 ft','Condições VFR para qualquer aeronave'],'CAVOK pode ter nuvens acima de 5.000 ft (ou da maior altitude mínima de setor). Não quer dizer céu limpo!'],
+  ['O RVR (alcance visual na pista) é informado quando:',['A visibilidade ou o RVR está abaixo de 1.500 m','Sempre que há chuva','A visibilidade está abaixo de 5.000 m','Há vento de través'],'O grupo R../.... aparece com visibilidade ou RVR abaixo de 1.500 m.'],
+  ['No RVR R29/P2000, o P significa:',['Maior que o valor máximo medido (mais de 2.000 m)','Pista principal','Previsto','Pista paralela'],'P = acima do limite do equipamento. M = abaixo do limite mínimo.'],
+  ['0000 no grupo de visibilidade significa:',['Visibilidade inferior a 50 m','Visibilidade não informada','Visibilidade de 10 km','Aeródromo fechado'],'0000 = menos de 50 m.'],
+ ],
+ nuvens:[
+  ['A altura das nuvens no METAR é dada:',['Em centenas de pés acima do aeródromo','Em metros acima do nível do mar','Em milhares de pés acima do nível do mar','Em pés de altitude-pressão'],'BKN008 = base a 800 ft de altura sobre o aeródromo.'],
+  ['Qual é a quantidade de BKN?',['5 a 7 oitavos','3 a 4 oitavos','8 oitavos','1 a 2 oitavos'],'FEW 1–2/8, SCT 3–4/8, BKN 5–7/8, OVC 8/8.'],
+  ['O que é TETO?',['Base da camada mais baixa BKN ou OVC (ou VV) abaixo de 20.000 ft','Base da camada mais baixa de qualquer nuvem','Topo da camada mais alta','Altura das nuvens CB'],'Só BKN, OVC ou visibilidade vertical (VV) formam teto. FEW e SCT não.'],
+  ['VV002 significa:',['Céu obscurecido, visibilidade vertical de 200 ft','Visibilidade horizontal de 200 m','Vento variável a 2 kt','Duas camadas de nuvens'],'VV aparece quando não dá para ver o céu (ex.: nevoeiro denso). Conta como teto.'],
+  ['Quais tipos de nuvem aparecem identificados no METAR?',['Apenas CB e TCU','Todos os gêneros (CU, ST, AC, CI...)','Apenas CB','Apenas nuvens baixas'],'Só cumulonimbus (CB) e cumulus congestus (TCU) recebem identificação.'],
+  ['Diferença entre NSC e NCD:',['NSC: nenhuma nuvem significativa; NCD: estação automática não detectou nuvens','São sinônimos','NSC é para TAF e NCD para METAR','NCD indica céu encoberto'],'NCD é usado em observações AUTO.'],
+ ],
+ temp:[
+  ['No grupo 08/M02, o M significa:',['Valor negativo (ponto de orvalho −2 °C)','Medido','Mínima','Milibares'],'M = menos.'],
+  ['Temperatura e ponto de orvalho muito próximos indicam:',['Ar quase saturado: risco de névoa/nevoeiro e nuvens baixas','Ar seco e estável','Vento forte','Alta pressão'],'Spread pequeno (diferença temp − orvalho) = umidade alta.'],
+  ['O QNH é:',['A pressão ajustada ao nível médio do mar; no altímetro, faz ler a altitude do aeródromo no solo','A pressão medida na pista','A pressão padrão 1013,2 hPa','A pressão no topo das nuvens'],'Com o QNH ajustado, o altímetro indica altitude (acima do nível do mar).'],
+  ['Q1008 comparado a Q1022 sugere, em geral:',['Pressão mais baixa, tempo mais instável','Pressão mais alta, céu mais limpo','Não há relação com o tempo','Vento calmo'],'Pressões baixas costumam vir com instabilidade.'],
+ ],
+ tempo:[
+  ['Sem sinal de intensidade (ex.: RA), a precipitação é:',['Moderada','Leve','Forte','Nas vizinhanças'],'"-" leve, sem sinal moderada, "+" forte.'],
+  ['VC significa:',['Nas vizinhanças: entre 8 e 16 km do aeródromo','Visibilidade crítica','Vento cruzado','Muito chuvoso'],'Ex.: VCTS = trovoada nas vizinhanças.'],
+  ['Diferença entre FG e BR:',['FG: visibilidade abaixo de 1.000 m; BR: de 1.000 m a 5.000 m','FG é seco e BR é úmido','BR é mais denso que FG','São a mesma coisa'],'Nevoeiro (FG) < 1.000 m; névoa úmida (BR) entre 1.000 e 5.000 m.'],
+  ['HZ significa:',['Névoa seca (partículas secas, ar com baixa umidade)','Neblina úmida','Granizo','Nevoeiro em bancos'],'HZ: névoa seca. Ocorre muito no Centro-Oeste na seca e com fumaça de queimadas (FU).'],
+  ['TS sem fenômeno após (ex.: só "TS") indica:',['Trovoada sem precipitação no aeródromo','Trovoada forte','Tempestade de areia','Erro de codificação'],'Pode haver CB e trovões sem chuva no ponto de observação.'],
+  ['GR significa:',['Granizo (pedras de gelo de 5 mm ou mais)','Granizo pequeno (menos de 5 mm)','Grãos de neve','Névoa seca'],'GR = granizo; GS = granizo pequeno. Granizo vem de CB: risco sério de danos à aeronave.'],
+  ['+TSRAGR significa:',['Trovoada com chuva e granizo, intensidade forte','Trovoada nas vizinhanças com granizo','Chuva forte e grãos de neve','Pancadas de granizo leve'],'Fenômenos de precipitação podem ser combinados: RA + GR = chuva e granizo.'],
+  ['SH significa:',['Pancadas (precipitação de nuvens convectivas)','Neve','Chuvisco','Sem chuva'],'SHRA = pancadas de chuva.'],
+ ],
+ supl:[
+  ['RETSRA significa:',['Trovoada com chuva recente: ocorreu desde a última observação e já não ocorre','Trovoada com chuva prevista','Trovoada repetida','Retorno da trovoada'],'RE = tempo recente.'],
+  ['WS R11 significa:',['Tesoura de vento (windshear) informada na pista 11','Vento de oeste na pista 11','Pista 11 molhada','Visibilidade reduzida na pista 11'],'WS = wind shear.'],
+  ['NOSIG significa:',['Nenhuma mudança significativa prevista nas próximas 2 horas','Sem tempo significativo agora','Sinal do equipamento indisponível','Sem nuvens significativas'],'NOSIG é uma previsão de tendência de 2 horas anexada ao METAR.'],
+ ],
+ vmc:[
+  ['Mínimos VMC para voo VFR em aeródromo no Brasil (regra geral):',['Teto ≥ 1.500 ft e visibilidade ≥ 5.000 m','Teto ≥ 1.000 ft e visibilidade ≥ 3.000 m','Teto ≥ 500 ft e visibilidade ≥ 1.500 m','Apenas visibilidade ≥ 10 km'],'Regra geral do VFR no Brasil (ICA 100-12): teto de 1.500 ft e visibilidade de 5 km no aeródromo.'],
+  ['Uma camada SCT005 forma teto?',['Não, SCT não forma teto','Sim, a 500 ft','Sim, a 5.000 ft','Só se houver chuva'],'Somente BKN, OVC ou VV formam teto.'],
+ ],
+ speci:[
+  ['O que é um SPECI?',['Observação especial, emitida fora do horário regular quando há mudança significativa','Previsão especial para voos VIP','METAR com erro corrigido','Boletim de aviso de aeródromo'],'Tem o mesmo formato do METAR, mas o horário não é o da hora cheia.'],
+  ['Qual destas situações motiva um SPECI?',['Início ou fim de trovoada','Temperatura subir 1 °C','QNH variar 1 hPa','Nuvem FEW aparecer a 4.000 ft'],'Início/fim de trovoada, granizo, precipitação congelante, entre outros, geram SPECI.'],
+  ['O SPECI é emitido quando a visibilidade:',['Cruza valores-limite como 800, 1.500, 3.000 e 5.000 m','Varia qualquer valor','Só quando fica abaixo de 500 m','Nunca: visibilidade não gera SPECI'],'Os critérios são valores-limite importantes para as operações.'],
+  ['O SPECI é emitido quando a base de camada BKN/OVC:',['Cruza valores-limite como 100, 200, 500, 1.000 e 1.500 ft','Varia 100 ft','Sobe acima de 10.000 ft','Não: nuvens não geram SPECI'],'Esses valores casam com mínimos de aproximação e VFR.'],
+  ['Para uma MELHORA das condições, o SPECI:',['É emitido depois que a melhora se mantém por cerca de 10 minutos','Nunca é emitido','É emitido imediatamente, sempre','Só vai no próximo METAR'],'Piora: SPECI imediato. Melhora: só após a nova condição se manter (cerca de 10 min).'],
+ ],
+ taf:[
+  ['O que é o TAF?',['Previsão meteorológica para um aeródromo, num período de validade','Observação horária','Aviso de cortante de vento','Previsão de área para rota'],'TAF = Terminal Aerodrome Forecast.'],
+  ['Num TAF, 1118/1218 indica:',['Válido do dia 11 às 18Z até o dia 12 às 18Z','Emitido às 11:18','Válido das 11h às 18h','Temperaturas entre 11 e 18 °C'],'Grupo de validade: DDHH/DDHH em UTC.'],
+  ['TX29/1218Z significa:',['Temperatura máxima prevista de 29 °C no dia 12 às 18Z','Temperatura atual de 29 °C','Ponto de orvalho de 29 °C','Visibilidade de 2.900 m às 18Z'],'TX = máxima, TN = mínima, com o horário previsto.'],
+ ],
+ mudanca:[
+  ['BECMG 1203/1205 significa:',['Mudança gradual entre 03Z e 05Z do dia 12; depois disso a nova condição vale até o próximo grupo','Condição temporária das 03Z às 05Z','Mudança brusca às 03Z','Probabilidade de mudança'],'BECMG = becoming. Só os elementos que mudam aparecem; o resto continua igual.'],
+  ['TEMPO significa:',['Flutuações temporárias, cada uma com menos de 1 h, somando menos da metade do período','Mudança permanente','Previsão de temperatura','Tempo bom'],'Depois do TEMPO, volta a condição predominante.'],
+  ['FM120300 significa:',['A partir do dia 12 às 03:00Z as condições mudam rapidamente e substituem todas as anteriores','Do dia 3 ao dia 12','Frente meteorológica às 12Z','Por 3 horas a partir das 12Z'],'FM (from) inicia um bloco totalmente novo de previsão.'],
+  ['Quais valores de probabilidade o TAF usa no grupo PROB?',['Só 30% e 40%','10% a 90%','Só 50%','Qualquer múltiplo de 10'],'Abaixo de 30% não se inclui; 50% ou mais vira BECMG/TEMPO/FM.'],
+  ['Num BECMG que só traz "BKN010", o vento e a visibilidade:',['Continuam como estavam antes','Passam a ser calmos e 10 km','Ficam indefinidos','Voltam ao padrão'],'Só os elementos que mudam são repetidos num grupo de mudança.'],
+ ],
+};
+
+/* ================= lições ================= */
+const UNITS=[
+ {t:'Unidade 1 · METAR básico',d:'Os grupos que aparecem em todo METAR',c:'var(--u1)',ls:[
+  {id:'ident',t:'Identificação',ic:'🆔',kind:'metar',cats:['tipo','local','hora','status'],conc:'ident',prat:['hora'],write:[]},
+  {id:'vento',t:'Vento',ic:'💨',kind:'metar',cats:['vento'],conc:'vento',prat:['rajada'],write:['vento'],scen:['bom','ventoso','trovoada','nublado','nevoeiro']},
+  {id:'vis',t:'Visibilidade',ic:'👁️',kind:'metar',cats:['vis','rvr'],conc:'vis',prat:[],write:['vis'],scen:['bom','nevoeiro','chuva','trovoada','nevoa']},
+  {id:'nuvens',t:'Nuvens',ic:'☁️',kind:'metar',cats:['nuvens'],conc:'nuvens',prat:['teto'],write:['nuvens'],scen:['nublado','chuva','trovoada','nevoeiro','bom']},
+  {id:'temp',t:'Temp. e QNH',ic:'🌡️',kind:'metar',cats:['temp','pressao'],conc:'temp',prat:['qnh','spread'],write:['temp','pressao']},
+ ]},
+ {t:'Unidade 2 · Tempo significativo',d:'Chuva, nevoeiro, trovoada e mínimos',c:'var(--u2)',ls:[
+  {id:'tempo',t:'Tempo presente',ic:'🌧️',kind:'metar',cats:['tempo'],conc:'tempo',prat:[],write:['tempo'],scen:['chuva','nevoeiro','trovoada','nevoa','nublado']},
+  {id:'supl',t:'Recente e windshear',ic:'⚡',kind:'metar',cats:['supl','tend','rvr'],conc:'supl',prat:[],write:[],scen:['pos','trovoada','nevoeiro','bom']},
+  {id:'vmc',t:'Teto e VMC/IMC',ic:'✈️',kind:'metar',cats:[],conc:'vmc',prat:['teto','vmc','vmc','teto'],write:[]},
+  {id:'fullm',t:'METAR completo',ic:'🧩',kind:'metar',full:true,conc:null,prat:['vmc','hora'],write:[]},
+ ]},
+ {t:'Unidade 3 · SPECI',d:'O boletim das mudanças repentinas',c:'var(--u3)',ls:[
+  {id:'speci1',t:'Quando sai um SPECI',ic:'🚨',kind:'speci',cats:['tipo','hora','tempo','vis','nuvens'],conc:'speci',prat:['motivo'],write:[]},
+  {id:'speci2',t:'SPECI na prática',ic:'🔍',kind:'speci',cats:['vento','vis','tempo','nuvens','rvr','supl'],conc:null,prat:['motivo','motivo','vmc','teto'],write:['vento','nuvens']},
+ ]},
+ {t:'Unidade 4 · TAF',d:'Lendo a previsão do aeródromo',c:'var(--u4)',ls:[
+  {id:'taf1',t:'Cabeçalho do TAF',ic:'🗓️',kind:'taf',cats:['tipo','hora','validade','txtn','rmk'],conc:'taf',prat:['tx','valfim'],write:[]},
+  {id:'taf2',t:'Grupos de mudança',ic:'🔀',kind:'taf',cats:['mudanca'],conc:'mudanca',prat:['grupohora'],write:[]},
+  {id:'taf3',t:'TAF completo',ic:'📜',kind:'taf',full:true,conc:null,prat:['grupohora','tx'],write:[]},
+ ]},
+ {t:'Unidade 5 · Mestre do briefing',d:'Tudo misturado, inclusive seus códigos reais',c:'var(--u5)',ls:[
+  {id:'mix',t:'Desafio misto',ic:'🏆',kind:'mix',cats:['vento','vis','rvr','tempo','nuvens','temp','pressao','supl','mudanca','txtn','validade','hora'],conc:'all',prat:['teto','vmc','motivo','grupohora','hora'],write:['vento','nuvens','vis']},
+ ]},
+];
+const ALL_LESSONS=UNITS.flatMap(u=>u.ls);
+
+/* ================= distratores ================= */
+function variants(item,type){
+  const r=item.raw,c=item.cat,o=[];let m;
+  const W=(d,s,g)=>(d==='VRB'?'VRB':p3(((+d%360)+360)%360||360))+p2(Math.max(1,s))+(g?'G'+p2(g):'')+'KT';
+  switch(c){
+  case 'vento':
+    if(m=r.match(/^(\d{3}|VRB)(\d{2})(?:G(\d{2}))?KT$/)){
+      const d=m[1],s=+m[2],g=m[3]?+m[3]:null;
+      if(r==='00000KT'){o.push('VRB03KT','36010KT',{text:'Vento de 360° (norte) com rajadas'},{text:'Vento não medido'});break}
+      if(d!=='VRB'){o.push(W(+d+180,s,g),W(+d+rnd(3,6)*10,s,g),{text:`Vento soprando PARA ${d}° com ${s} nós${g?', rajadas de '+g+' nós':''}`});
+        if(s>=10)o.push({text:`Vento de ${p3(s*10%360||360)}° com ${+d%100||5} nós`});}
+      else o.push(W(rnd(1,36)*10,s,null),{text:`Vento de 020° com ${s} nós`});
+      o.push(W(d,s+rnd(4,9),g));o.push(g?W(d,s,null):W(d,s,s+rnd(10,15)));
+      if(g)o.push({text:`Vento de ${d}° com ${g} nós, rajadas de ${s} nós`});
+    }else if(m=r.match(/^(\d{3})V(\d{3})$/)){
+      o.push({text:`Vento de ${m[1]}° com rajadas até ${m[2]}°`},{text:`Vento de ${m[1]}° com ${+m[2]} nós`},{text:`Visibilidade variando entre ${+m[1]} e ${+m[2]} m`},{text:`Direção do vento variando entre ${m[2]}° e ${m[1]}° passando pelo sul`});
+    }break;
+  case 'vis':
+    if(r==='CAVOK'){o.push({text:'Céu completamente limpo, sem nenhuma nuvem, e visibilidade ilimitada'},{text:'Visibilidade de 5 km ou mais e teto acima de 1.500 ft'},{text:'Condições VFR garantidas em todo o espaço aéreo'},{text:'Sem nuvens abaixo de 10.000 ft e visibilidade de 8 km ou mais'});break}
+    if(m=r.match(/^(\d{4})$/)){const n=+m[1];
+      if(n===9999)o.push({text:'Visibilidade de 9.999 m exatamente'},{text:'Visibilidade não disponível'},{text:'Visibilidade de 9 km'});
+      else{o.push({text:`Visibilidade de ${fmtN(n*10)} m`},{text:`Visibilidade de ${fmtN(n)} ft`});if(n<1000)o.push({text:`Visibilidade de ${fmtN(n)} km`})}
+      shuffle([800,1500,3000,5000,8000,9999,600,2000,4000]).filter(x=>x!==n).slice(0,3).forEach(x=>o.push(p4(x)));
+    }else if(m=r.match(/^(\d{4})(NE|NW|SE|SW|N|E|S|W)$/)){
+      const opp={N:'S',S:'N',E:'W',W:'E',NE:'SW',SW:'NE',NW:'SE',SE:'NW'};
+      o.push(m[1]+opp[m[2]],{text:`Visibilidade de ${fmtN(+m[1])} m em todas as direções exceto ${DIRS[m[2]]}`},{text:`Vento de ${DIRS[m[2]]} com visibilidade de ${fmtN(+m[1])} m`},p4(Math.min(+m[1]*2,9999))+m[2]);
+    }break;
+  case 'rvr':
+    if(m=r.match(/^R(\d{2}[LCR]?)\/([PM])?(\d{4})([UDN])?$/)){
+      o.push({text:`Visibilidade vertical de ${fmtN(+m[3])} ft na pista ${m[1]}`},{text:`Pista ${m[1]} com ${fmtN(+m[3])} m de comprimento disponível`});
+      o.push(`R${m[1]}/${m[2]==='P'?'M':'P'}${m[3]}${m[4]||''}`);
+      o.push(`R${m[1]}/${m[2]||''}${p4(Math.max(50,+m[3]+pick([-300,300,500])))}${m[4]==='U'?'D':m[4]==='D'?'U':'N'}`);
+    }break;
+  case 'nuvens':
+    if(m=r.match(/^(FEW|SCT|BKN|OVC)(\d{3})(CB|TCU)?$/)){
+      ['FEW','SCT','BKN','OVC'].filter(a=>a!==m[1]).forEach(a=>o.push(a+m[2]+(m[3]||'')));
+      o.push({text:AMT[m[1]]+` com base a ${fmtN(+m[2]*1000)} ft`+(m[3]==='CB'?' — cumulonimbus (CB)':'')});
+      o.push({text:AMT[m[1]]+` com base a ${fmtN(+m[2]*100)} m`+(m[3]==='CB'?' — cumulonimbus (CB)':'')});
+      if(m[3])o.push(m[1]+m[2]);else o.push(m[1]+m[2]+'CB');
+    }else if(m=r.match(/^VV(\d{3})$/)){
+      o.push({text:`Visibilidade horizontal de ${fmtN(+m[1]*100)} m`},'OVC'+m[1],{text:`Vento variável a ${+m[1]} nós`},{text:`Céu obscurecido, visibilidade vertical de ${fmtN(+m[1]*1000)} ft`});
+    }else{o.push('NCD','SKC',{text:'Céu encoberto acima de 5.000 ft'},'CAVOK');o.splice(o.indexOf(r),1)}
+    break;
+  case 'tempo':{
+    const ints=['-','','+'];const base=r.replace(/^[-+]|^VC/,'');
+    const ci=r.startsWith('-')?'-':r.startsWith('+')?'+':r.startsWith('VC')?'VC':'';
+    ints.filter(x=>x!==ci).forEach(x=>{if(x||PRECIP.some(p=>base.includes(p)))o.push(x+base)});
+    const swaps={FG:['BR','HZ'],BR:['FG','HZ'],HZ:['BR','FU'],FU:['HZ'],RA:['DZ','SN'],DZ:['RA'],TS:['SH'],SH:['TS'],GR:['GS'],BC:['MI','PR'],MI:['BC'],PR:['BC']};
+    for(const k in swaps)if(base.includes(k))swaps[k].forEach(v=>o.push(ci+base.replace(k,v)));
+    if(ci!=='VC'&&!base.startsWith('SH'))o.push('VC'+base.replace(/^(RA|DZ)$/,'SH'));
+    if(base==='TS')o.push('TSRA');
+    o.push({text:'Trovoada prevista para as próximas horas'});
+    break;}
+  case 'temp':
+    if(m=r.match(/^(M?\d{2})\/(M?\d{2})$/)){const a=parseT(m[1]),b=parseT(m[2]);
+      o.push({text:`Temperatura ${b}°C, ponto de orvalho ${a}°C`},{text:`Temperatura máxima ${a}°C, mínima ${b}°C`},{text:`Temperatura ${-a}°C, ponto de orvalho ${-b}°C`},{text:`Temperatura ${a}°C, umidade relativa de ${Math.abs(b)}%`});}
+    break;
+  case 'pressao':
+    if(m=r.match(/^Q(\d{4})$/)){const n=+m[1];o.push('Q'+(n+rnd(2,6)),'Q'+(n-rnd(2,6)),{text:`QFE ${n} hPa (pressão na pista)`},{text:`Altitude do aeródromo de ${fmtN(n)} ft`},{text:`Pressão padrão ${n} hPa — use 1013`});}
+    break;
+  case 'hora':
+    if(m=r.match(/^(\d{2})(\d{2})(\d{2})Z$/)){
+      const pre=type==='TAF'?'Emitido no ':'Observado no ';
+      o.push({text:`${pre}dia ${+m[1]}, às ${m[2]}:${m[3]} horário de Brasília`},{text:`${pre}dia ${+m[2]||1}, às ${m[1]}:${m[3]} UTC`},{text:`${pre}dia ${+m[1]}, às ${p2((+m[2]+3)%24)}:${m[3]} UTC (${m[2]}:${m[3]} em Brasília)`},{text:`${pre}mês ${+m[1]}, dia ${+m[2]}, às ${m[3]}h`});
+    }break;
+  case 'tipo':
+    Object.entries(TYPE_TXT).filter(([k])=>k!==r).forEach(([,v])=>o.push({text:v}));
+    o.push({text:'METAR — previsão do tempo para as próximas 2 horas'},{text:'SPECI — METAR corrigido por erro de digitação'},{text:'TAF — observação do tempo atual no aeródromo'});
+    break;
+  case 'local':
+    shuffle(AIRPORTS.filter(a=>a.icao!==r)).slice(0,2).forEach(a=>o.push({text:`Aeródromo ${a.icao} — ${a.name} (indicador de localidade OACI)`}));
+    o.push({text:`Código da companhia aérea responsável pelo boletim`},{text:'Código da estação de radar meteorológico'});break;
+  case 'status':
+    ['AUTO','COR','AMD','NIL'].filter(x=>x!==r).forEach(x=>o.push(x));break;
+  case 'supl':
+    if(r.startsWith('RE')){const w=r.slice(2);o.push({text:`Previsão de ${(wxText(w)||'').toLowerCase()} para a próxima hora`},{text:`${wxText(w)} ocorrendo agora`},'WS ALL RWY',{text:'Repetição do grupo de tempo presente'});}
+    else{o.push('RETSRA',{text:'Vento forte de través em todas as pistas'},{text:'Pista molhada (wet surface)'},{text:'Aviso de cortante de vento previsto para as próximas 2 horas'});}
+    break;
+  case 'tend':
+    o.push({text:'Sem sinal / dados indisponíveis'},{text:'Nenhum tempo significativo ocorrendo agora'},{text:'Nenhuma nuvem significativa'},{text:'Sem mudança no próximo TAF'});break;
+  case 'validade':
+    if(m=r.match(/^(\d{2})(\d{2})\/(\d{2})(\d{2})$/)){
+      o.push({text:`Validade: das ${m[1]}:${m[2]} às ${m[3]}:${m[4]} (horário local)`},{text:`Validade: do dia ${+m[2]} às ${m[1]}Z até o dia ${+m[4]} às ${m[3]}Z`},{text:`Emitido no dia ${+m[1]} às ${m[2]}Z, próximo TAF no dia ${+m[3]} às ${m[4]}Z`},{text:`Temperaturas entre ${+m[2]} e ${+m[4]} °C`});
+    }break;
+  case 'mudanca':{
+    const per=(r.match(/\d{4}\/\d{4}/)||[''])[0];
+    if(per){['BECMG','TEMPO','PROB30','PROB40','PROB40 TEMPO'].forEach(k=>{const tk=k+' '+per;if(tk!==r)o.push(tk)});
+      const pm=per.match(/^(\d{2})(\d{2})\/(\d{2})(\d{2})$/);o.push({text:`Mudança brusca exatamente às ${pm[2]}Z do dia ${+pm[1]}`});}
+    else if(m=r.match(/^FM(\d{2})(\d{2})(\d{2})$/)){o.push({text:`Do dia ${+m[1]} ao dia ${+m[2]}, condições temporárias`},{text:`Frente fria prevista no dia ${+m[1]} às ${m[2]}Z`},`BECMG ${m[1]}${m[2]}/${m[1]}${p2(Math.min(+m[2]+2,24))}`,`TEMPO ${m[1]}${m[2]}/${m[1]}${p2(Math.min(+m[2]+4,24))}`);}
+    break;}
+  case 'txtn':
+    if(m=r.match(/^(TX|TN)(M?\d{2})\/(\d{2})(\d{2})Z$/)){const k=m[1]==='TX'?'TN':'TX';o.push(`${k}${m[2]}/${m[3]}${m[4]}Z`,{text:`Temperatura ${m[1]==='TX'?'máxima':'mínima'} prevista de ${parseT(m[2])}°C às ${m[3]}:${m[4]} horário local`},{text:`Ponto de orvalho previsto de ${parseT(m[2])}°C no dia ${+m[3]} às ${m[4]}Z`},`${m[1]}${tempStr(parseT(m[2])+rnd(3,6))}/${m[3]}${m[4]}Z`);}
+    break;
+  case 'rmk':
+    o.push({text:'Remarcação do horário de emissão'},{text:'Fim do boletim — nada mais a informar'},{text:'Indicativo da pista em uso'});break;
+  }
+  return o;
+}
+function distractors(item,type,n){
+  n=n||3;const seen=new Set([item.text]),out=[];
+  for(const v of shuffle(variants(item,type))){
+    let txt=typeof v==='string'?(v===item.raw?null:decodeSingle(v,type)):v.text;
+    if(!txt||seen.has(txt)||/não reconhecido/.test(txt))continue;
+    seen.add(txt);out.push(txt);if(out.length>=n)break;
+  }
+  let guard=0;
+  while(out.length<n&&guard++<40){
+    const rep=parseReport(genAny(type==='TAF'?'taf':'metar'));
+    const c=rep.items.filter(x=>x.cat===item.cat&&!seen.has(x.text));
+    if(c.length){const x=pick(c);seen.add(x.text);out.push(x.text)}
+  }
+  return out;
+}
+function tokenVariants(item,type){ // para questão "escolha o grupo"
+  return shuffle(variants(item,type).filter(v=>typeof v==='string'&&v!==item.raw&&!/não reconhecido/.test(decodeSingle(v,type))));
+}
+
+/* ================= construção de questões ================= */
+function codeBlock(rep,hl,label){return{label:label||rep.type,items:rep.items,hl}}
+function mcFromItem(rep,idx){
+  const it=rep.items[idx];
+  const opts=shuffle([{label:it.text,correct:true},...distractors(it,rep.type).map(t=>({label:t}))]);
+  return{tag:CATS[it.cat],kind:'mc',prompt:'O que significa o grupo destacado?',codes:[codeBlock(rep,idx)],options:opts,
+    explain:`<span class="mono">${esc(it.raw)}</span> = ${esc(it.text)}.${TIPS[it.cat]?' '+esc(TIPS[it.cat]):''}`,
+    mist:{raw:rep.raw,idx}};
+}
+function reverseFromItem(rep,idx){
+  const it=rep.items[idx];
+  if(chance(.5)){
+    return{tag:CATS[it.cat],kind:'pick',prompt:'Toque no grupo que significa:',target:it.text,codes:[codeBlock(rep,-1)],answer:idx,
+      explain:`É o grupo <span class="mono">${esc(it.raw)}</span>.`,mist:{raw:rep.raw,idx}};
+  }
+  const v=tokenVariants(it,rep.type).slice(0,3);
+  if(v.length<2)return mcFromItem(rep,idx);
+  const opts=shuffle([{label:it.raw,correct:true},...v.map(x=>({label:x}))]);
+  return{tag:CATS[it.cat],kind:'mc',mono:true,prompt:'Qual grupo codifica isto?',target:it.text,codes:[],options:opts,
+    explain:`<span class="mono">${esc(it.raw)}</span> = ${esc(it.text)}.${TIPS[it.cat]?' '+esc(TIPS[it.cat]):''}`,mist:{raw:rep.raw,idx}};
+}
+function writeFromItem(rep,idx){
+  const it=rep.items[idx];
+  return{tag:CATS[it.cat]+' · escreva',kind:'write',prompt:'Escreva o grupo que codifica:',target:it.text,codes:[],answer:it.raw,
+    explain:`O certo é <span class="mono">${esc(it.raw)}</span>. ${TIPS[it.cat]?esc(TIPS[it.cat]):''}`,mist:{raw:rep.raw,idx}};
+}
+function conceptQ(key){
+  let bank=key==='all'?Object.values(CONC).flat():CONC[key];
+  const c=pick(bank);
+  return{tag:'Teoria',kind:'mc',prompt:c[0],codes:[],options:shuffle(c[1].map((l,i)=>({label:l,correct:i===0}))),explain:esc(c[2])};
+}
+function mcSimple(tag,prompt,codes,correct,wrongs,explain){
+  const ws=[...new Set(wrongs.filter(w=>w!==correct))].slice(0,3);
+  return{tag,kind:'mc',prompt,codes,options:shuffle([{label:correct,correct:true},...ws.map(w=>({label:w}))]),explain};
+}
+function practicalQ(kind){
+  if(kind==='motivo'){
+    const p=genSpeciPair();const r1=parseReport(p.metar),r2=parseReport(p.speci);
+    return mcSimple('SPECI','O que provavelmente motivou este SPECI?',[codeBlock(r1,-1,'METAR anterior'),codeBlock(r2,-1,'SPECI')],MOTIVOS[p.mot],Object.entries(MOTIVOS).filter(([k])=>k!==p.mot).map(([,v])=>v),
+      `Compare os dois boletins: ${esc(MOTIVOS[p.mot].toLowerCase())}. Esse tipo de mudança dispara um SPECI fora do horário.`);
+  }
+  if(['tx','valfim','grupohora'].includes(kind)){
+    const rep=parseReport(genTAF());
+    if(kind==='tx'){const it=rep.items.find(x=>x.raw.startsWith('TX'));const m=it.raw.match(/^TX(M?\d{2})\/(\d{2})(\d{2})Z$/);
+      const tn=rep.items.find(x=>x.raw.startsWith('TN')).raw.match(/^TN(M?\d{2})/)[1];
+      return mcSimple('TAF','Qual a temperatura máxima prevista e quando?',[codeBlock(rep,-1)],`${parseT(m[1])} °C, no dia ${+m[2]} às ${m[3]}Z`,[`${parseT(tn)} °C, no dia ${+m[2]} às ${m[3]}Z`,`${parseT(m[1])} °C, no dia ${+m[3]} às ${m[2]}Z`,`${parseT(m[1])} °C, às ${m[3]}h de Brasília`,`${parseT(m[1])+3} °C, no dia ${+m[2]} às ${m[3]}Z`],
+        `<span class="mono">${esc(it.raw)}</span> = máxima de ${parseT(m[1])} °C no dia ${+m[2]} às ${m[3]}Z (${localTime(m[3],'00')} em Brasília).`);}
+    if(kind==='valfim'){const it=rep.items.find(x=>x.cat==='validade');const m=it.raw.match(/^(\d{2})(\d{2})\/(\d{2})(\d{2})$/);
+      return mcSimple('TAF','Até quando este TAF é válido?',[codeBlock(rep,-1)],`Até o dia ${+m[3]} às ${m[4]}Z`,[`Até o dia ${+m[1]} às ${m[2]}Z`,`Até as ${m[4]}h de Brasília do dia ${+m[3]}`,`Por ${+m[4]} horas a partir da emissão`,`Até o dia ${+m[4]} às ${m[3]}Z`],
+        `Validade <span class="mono">${esc(it.raw)}</span>: do dia ${+m[1]} ${m[2]}Z ao dia ${+m[3]} ${m[4]}Z.`);}
+    const groups=rep.items.filter(x=>x.cat==='mudanca'&&/\d{4}\/\d{4}/.test(x.raw));
+    if(!groups.length)return practicalQ('tx');
+    const g=pick(groups);const pm=g.raw.match(/(\d{2})(\d{2})\/(\d{2})(\d{2})/);
+    const h=+pm[2]+1<+pm[4]||pm[1]!==pm[3]?(+pm[2]+1)%24:+pm[2];
+    const d=+pm[2]+1>=24?+pm[3]:+pm[1];
+    const tAbs=d*24+h;
+    const covers=x=>{const q=x.raw.match(/(\d{2})(\d{2})\/(\d{2})(\d{2})/);const s=+q[1]*24+ +q[2],e=+q[3]*24+ +q[4];return s<=tAbs&&tAbs<e};
+    const others=groups.filter(x=>x!==g&&!covers(x)).map(x=>x.raw);
+    const fakes=tokenVariants(g,'TAF').filter(v=>!/\d{4}\/\d{4}/.test(v)||v.match(/\d{4}\/\d{4}/)[0]!==g.raw.match(/\d{4}\/\d{4}/)[0]);
+    const per=g.raw.match(/(\d{2})(\d{2})\/(\d{2})(\d{2})/);
+    const shifted=[-6,6,10].map(k=>{const s=+per[2]+k,e=+per[4]+k;return s>=0&&e<=24&&s<e?g.raw.replace(per[0],per[1]+p2(s)+'/'+per[3]+p2(e)):null}).filter(Boolean).filter(x=>!covers({raw:x}));
+    return mcSimple('TAF',`Qual grupo de mudança cobre o dia ${d} às ${p2(h)}Z?`,[codeBlock(rep,-1)],g.raw,[...others,...fakes,...shuffle(shifted),'Nenhum grupo: vale só a previsão base',rep.items.find(x=>x.raw.startsWith('TN')).raw],
+      `<span class="mono">${esc(g.raw)}</span>: ${esc(g.text)}.`);
+  }
+  // METAR
+  let rep,tries=0;
+  do{rep=parseReport(genMETAR(kind==='rajada'?{scen:pick(['ventoso','trovoada'])}:kind==='teto'||kind==='vmc'?{scen:pick(['nublado','chuva','nevoeiro','bom','trovoada','nevoa'])}:{}));tries++}
+  while(kind==='rajada'&&!/G\d\d/.test(rep.raw)&&tries<10);
+  if(kind==='hora'){const it=rep.items.find(x=>x.cat==='hora');const m=it.raw.match(/^(\d{2})(\d{2})(\d{2})Z$/);
+    return mcSimple('Prática','Em horário de Brasília, quando foi esta observação?',[codeBlock(rep,rep.items.indexOf(it))],localTime(m[2],m[3]),[`${m[2]}:${m[3]}`,localTime(p2((+m[2]+6)%24),m[3]),`${p2((+m[2]+3)%24)}:${m[3]}`,localTime(p2((+m[2]+1)%24),m[3])],
+      `${m[2]}:${m[3]} UTC − 3 h = ${localTime(m[2],m[3])} em Brasília.`);}
+  if(kind==='rajada'){const it=rep.items.find(x=>x.cat==='vento');const m=it.raw.match(/G(\d\d)/);
+    if(!m)return practicalQ('hora');const s=it.raw.match(/^(?:\d{3}|VRB)(\d\d)/)[1];
+    return mcSimple('Prática','Qual a velocidade máxima de rajada?',[codeBlock(rep,rep.items.indexOf(it))],`${+m[1]} kt`,[`${+s} kt`,`${+m[1]-+s} kt`,`${+m[1]+10} kt`,`${it.raw.slice(0,3)} kt`],`<span class="mono">${esc(it.raw)}</span>: média ${+s} kt, rajadas de ${+m[1]} kt.`);}
+  if(kind==='qnh'){const it=rep.items.find(x=>x.cat==='pressao');const n=+it.raw.slice(1);
+    return mcSimple('Prática','Que valor você ajusta no altímetro?',[codeBlock(rep,-1)],`${n} hPa`,[`1013 hPa`,`${n-10} hPa`,`${n+3} hPa`,`${(n/33.864).toFixed(2)} hPa`],`QNH ${n} hPa (<span class="mono">${esc(it.raw)}</span>).`);}
+  if(kind==='spread'){const it=rep.items.find(x=>x.cat==='temp');const m=it.raw.match(/^(M?\d{2})\/(M?\d{2})$/);const sp=parseT(m[1])-parseT(m[2]);
+    return mcSimple('Prática','Qual a diferença entre temperatura e ponto de orvalho (spread)?',[codeBlock(rep,rep.items.indexOf(it))],`${sp} °C`,[`${sp+2} °C`,`${Math.abs(parseT(m[1])+parseT(m[2]))} °C`,`${Math.max(0,sp-2)===sp?sp+4:Math.max(0,sp-2)} °C`,`${sp+5} °C`],`${parseT(m[1])} − (${parseT(m[2])}) = ${sp} °C. ${sp<=2?'Spread pequeno: ar quase saturado, atenção para névoa/nevoeiro.':'Ar mais seco.'}`);}
+  const ceil=ceilingOf(rep.items),vis=visOf(rep.items);
+  if(kind==='teto'){
+    const cl=rep.items.filter(x=>/^(FEW|SCT|BKN|OVC)\d{3}/.test(x.raw)).map(x=>+x.raw.slice(3,6)*100);
+    const correct=ceil===null?'Sem teto':`${fmtN(ceil)} ft`;
+    const w=['Sem teto',...cl.map(h=>`${fmtN(h)} ft`),...(ceil?[`${fmtN(ceil*10)} ft`,`${fmtN(ceil/100)} ft`]:['1.500 ft','5.000 ft','10.000 ft'])];
+    return mcSimple('Prática','Qual é o teto neste boletim?',[codeBlock(rep,-1)],correct,shuffle(w),
+      ceil===null?'Não há camada BKN, OVC ou VV: não existe teto. FEW e SCT não formam teto.':`Teto = camada BKN/OVC/VV mais baixa: ${fmtN(ceil)} ft. FEW e SCT não contam.`);
+  }
+  if(kind==='vmc'){
+    const ok=vis>=5000&&(ceil===null||ceil>=1500);
+    const why=`Visibilidade ${vis>=10000?'≥ 10 km':fmtN(vis)+' m'} ${vis>=5000?'(≥ 5.000 m ✓)':'(< 5.000 m ✗)'}; teto ${ceil===null?'inexistente ✓':fmtN(ceil)+' ft '+(ceil>=1500?'(≥ 1.500 ft ✓)':'(< 1.500 ft ✗)')}.`;
+    return{tag:'Prática',kind:'mc',prompt:'O aeródromo está VMC ou IMC (mínimos gerais: teto 1.500 ft e vis. 5.000 m)?',codes:[codeBlock(rep,-1)],
+      options:shuffle([{label:'VMC — dá para operar VFR',correct:ok},{label:'IMC — abaixo dos mínimos VFR',correct:!ok}]),explain:why};
+  }
+  return conceptQ('vmc');
+}
+function getRep(lesson){
+  if(lesson.kind==='mix'){
+    if(S.mine.length&&chance(.45))return parseReport(pick(S.mine));
+    return parseReport(genAny(pick(['metar','metar','speci','taf'])));
+  }
+  for(let k=0;k<25;k++){
+    let raw;
+    if(lesson.kind==='taf')raw=genTAF();
+    else raw=genMETAR({speci:lesson.kind==='speci',scen:lesson.scen?pick(lesson.scen):(lesson.kind==='speci'?pick(['trovoada','nevoeiro','chuva','ventoso','nublado']):undefined)});
+    const rep=parseReport(raw);
+    if(!lesson.cats||!lesson.cats.length||rep.items.some(x=>lesson.cats.includes(x.cat)))return rep;
+  }
+  return parseReport(genAny(lesson.kind));
+}
+function itemIdx(rep,cats){
+  const c=rep.items.map((x,i)=>i).filter(i=>(!cats||!cats.length||cats.includes(rep.items[i].cat))&&rep.items[i].cat!=='unk');
+  return c.length?pick(c):-1;
+}
+function buildLesson(lesson){
+  const Q=[];
+  if(lesson.full){
+    const rep=getRep(lesson);
+    rep.items.forEach((it,i)=>{if(it.cat!=='unk'&&it.cat!=='tipo')Q.push(mcFromItem(rep,i))});
+    (lesson.prat||[]).forEach(p=>Q.push(practicalQ(p)));
+    return Q.slice(0,14);
+  }
+  const plan=[];
+  const nConc=lesson.conc?2:0, nPrat=Math.min((lesson.prat||[]).length,lesson.cats.length?2:5), nWrite=lesson.write&&lesson.write.length?1:0;
+  for(let i=0;i<nConc;i++)plan.push('conc');
+  for(let i=0;i<nPrat;i++)plan.push('prat'+i);
+  for(let i=0;i<nWrite;i++)plan.push('write');
+  while(plan.length<10)plan.push(lesson.cats.length?(chance(.62)?'mc':'rev'):(lesson.conc?'conc':'prat0'));
+  for(const p of shuffle(plan)){
+    try{
+      if(p==='conc')Q.push(conceptQ(lesson.conc));
+      else if(p.startsWith('prat')){const pr=lesson.prat;Q.push(practicalQ(pr[(+p.slice(4)+rnd(0,pr.length-1))%pr.length]))}
+      else{
+        const cats=p==='write'?lesson.write:lesson.cats;
+        let rep,idx=-1;for(let k=0;k<10&&idx<0;k++){rep=getRep(lesson);idx=itemIdx(rep,cats)}
+        if(idx<0){Q.push(conceptQ(lesson.conc||'all'));continue}
+        Q.push(p==='write'?writeFromItem(rep,idx):p==='rev'?reverseFromItem(rep,idx):mcFromItem(rep,idx));
+      }
+    }catch(e){console.log(e);Q.push(conceptQ('all'))}
+  }
+  return Q;
+}
+function buildReview(){
+  const Q=[];
+  for(const m of shuffle(S.mist).slice(0,10)){
+    const rep=parseReport(m.raw);if(!rep.items[m.idx])continue;
+    const q=chance(.6)?mcFromItem(rep,m.idx):reverseFromItem(rep,m.idx);q.review=m;Q.push(q);
+  }
+  return Q;
+}
+function buildFromCode(raw){
+  const rep=parseReport(raw);const Q=[];
+  rep.items.forEach((it,i)=>{if(it.cat!=='unk'&&it.cat!=='tipo')Q.push(chance(.75)?mcFromItem(rep,i):reverseFromItem(rep,i))});
+  if(rep.type!=='TAF'){
+    const ceil=ceilingOf(rep.items),vis=visOf(rep.items);
+    if(vis!==null){const ok=vis>=5000&&(ceil===null||ceil>=1500);Q.push({tag:'Prática',kind:'mc',prompt:'O aeródromo está VMC ou IMC (teto 1.500 ft / vis. 5.000 m)?',codes:[codeBlock(rep,-1)],options:shuffle([{label:'VMC — dá para operar VFR',correct:ok},{label:'IMC — abaixo dos mínimos VFR',correct:!ok}]),explain:`Teto: ${ceil===null?'nenhum':fmtN(ceil)+' ft'}; visibilidade: ${vis>=10000?'10 km ou mais':fmtN(vis)+' m'}.`});}
+  }
+  return Q;
+}
+</script>
+
+<script id="render">
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+const $=s=>document.querySelector(s);
+let tab='home',L=null;
+function toast(msg){const d=document.createElement('div');d.className='toast';d.textContent=msg;document.body.appendChild(d);setTimeout(()=>d.remove(),1800)}
+
+function topBar(){
+  const r=RANKS[rankIdx(S.xp)];
+  return `<div class="top"><div class="brand">✈️ Decola METAR</div>
+  <div class="stat" title="${r.n}" onclick="go('me')" style="cursor:pointer">${epaulet(r.s,r.star,14)}</div>
+  <div class="stat" title="Sequência"><span class="ic">🔥</span>${S.streak}</div>
+  <div class="stat" title="XP"><span class="ic">⭐</span>${S.xp}</div></div>`;
+}
+function navBar(){
+  const b=(id,ic,t)=>`<button class="${tab===id?'on':''}" onclick="go('${id}')"><span class="ic">${ic}</span>${t}</button>`;
+  return `<nav class="nav"><div>${b('home','🛫','Aprender')}${b('dec','🔎','Decodificar')}${b('ref','📘','Referência')}${b('me','👤','Perfil')}</div></nav>`;
+}
+function go(t){tab=t;L=null;render();window.scrollTo(0,0)}
+function isUnlocked(i){if(S.unlockAll||i===0)return true;return !!S.done[ALL_LESSONS[i-1].id]}
+function render(){
+  const app=$('#app');
+  if(FB_ON&&!AUTH_READY){app.innerHTML='<div class="login"><div class="big">✈️</div><p class="sub">Carregando…</p></div>';return}
+  if(FB_ON&&!USER){app.innerHTML=loginView();return}
+  if(L){renderLesson();return}
+  let h=topBar();
+  if(tab==='home')h+=homeView();
+  if(tab==='dec')h+=decView();
+  if(tab==='ref')h+=refView();
+  if(tab==='me')h+=meView();
+  app.innerHTML=h+navBar();
+  if(tab==='dec'){const ta=$('#ta');if(ta&&window._decText)ta.value=window._decText;if(window._decText)runDecode(true)}
+}
+function homeView(){
+  const dx=dailyXP();
+  let h=`<div class="wrap"><div class="goal"><span style="font-size:26px">🎯</span><div style="flex:1"><div style="font-weight:800;font-size:14px;margin-bottom:5px">Meta diária: ${Math.min(dx,GOAL)}/${GOAL} XP</div><div class="bar"><i style="width:${Math.min(100,dx/GOAL*100)}%"></i></div></div></div>`;
+  h+=rankCard(true);
+  if(S.mist.length)h+=`<button class="btn ghost" style="margin-top:10px" onclick="startReview()">🔁 Revisar meus erros (${S.mist.length})</button>`;
+  let gi=0,curSet=false;
+  UNITS.forEach(u=>{
+    h+=`<div class="unit" style="background:${u.c}"><h2>${u.t}</h2><p>${u.d}</p></div><div class="path">`;
+    u.ls.forEach((l,j)=>{
+      const i=ALL_LESSONS.indexOf(l),un=isUnlocked(i),dn=S.done[l.id]||0;
+      const cur=un&&!dn&&!curSet;if(cur)curSet=true;
+      const off=[0,60,0,-60][j%4];
+      h+=`<div class="node" style="transform:translateX(${off}px)"><button class="circle ${un?'':'locked'} ${cur?'cur':''}" style="background:${u.c}" onclick="openLesson(${i})">${un?l.ic:'🔒'}</button>
+      <div class="lbl">${l.t}</div><div class="stars">${'★'.repeat(Math.min(dn,3))}${'☆'.repeat(Math.max(0,3-dn))}</div></div>`;
+      gi++;
+    });
+    h+='</div>';
+  });
+  h+=`<p class="small" style="text-align:center;margin-top:24px">Faça cada lição 3 vezes para dominar (★★★). Os códigos mudam a cada rodada.</p></div>`;
+  return h;
+}
+function rankCard(compact){
+  const i=rankIdx(S.xp),r=RANKS[i],nx=RANKS[i+1];
+  const pct=nx?Math.round((S.xp-r.x)/(nx.x-r.x)*100):100;
+  return `<div class="goal" ${compact?'onclick="go(\'me\')" style="cursor:pointer"':''}>${epaulet(r.s,r.star,26)}<div style="flex:1"><div style="font-weight:900;font-size:15px">${r.n}</div><div class="small" style="margin:1px 0 6px">${nx?`Faltam ${nx.x-S.xp} XP para ${nx.n}`:'Topo da hierarquia! ✈️'}</div><div class="bar"><i style="width:${pct}%;background:#e8b830"></i></div></div></div>`;
+}
+function openLesson(i){
+  const l=ALL_LESSONS[i];
+  if(!isUnlocked(i)){toast('Complete a lição anterior primeiro');return}
+  const dn=S.done[l.id]||0;
+  sheet(`<h3>${l.ic} ${l.t}</h3><p>${dn?`Concluída ${dn}x. Os códigos são novos a cada vez.`:'Lição nova. Você tem 5 vidas.'}</p><button class="btn ok" onclick="closeSheet();startLesson(${i})">Começar · +${dn>=3?5:10} XP</button>`);
+}
+function sheet(html){const d=document.createElement('div');d.className='sheet-bg';d.id='sheet';d.onclick=e=>{if(e.target===d)closeSheet()};d.innerHTML=`<div class="sheet">${html}</div>`;document.body.appendChild(d)}
+function closeSheet(){const s=$('#sheet');if(s)s.remove()}
+
+/* ===== lição ===== */
+function startLesson(i){const l=ALL_LESSONS[i];L={lesson:l,Q:buildLesson(l),pos:0,hearts:5,correct:0,total:0,sel:null,checked:false,xp:0,requeue:0};render();window.scrollTo(0,0)}
+function startReview(){const Q=buildReview();if(!Q.length){toast('Sem erros para revisar');return}L={lesson:{id:'_review',t:'Revisão'},Q,pos:0,hearts:5,correct:0,total:0,sel:null,checked:false,xp:0,requeue:0};render()}
+function startCode(raw){const Q=buildFromCode(raw);if(!Q.length){toast('Não consegui gerar perguntas');return}L={lesson:{id:'_code',t:'Seu código'},Q:shuffle(Q),pos:0,hearts:5,correct:0,total:0,sel:null,checked:false,xp:0,requeue:0};render();window.scrollTo(0,0)}
+function quitLesson(){sheet(`<h3>Sair da lição?</h3><p>Você vai perder o progresso desta lição.</p><button class="btn bad" onclick="closeSheet();L=null;render()">Sair</button><div style="height:10px"></div><button class="btn ghost" onclick="closeSheet()">Continuar estudando</button>`)}
+function codeHTML(c,q){
+  const pickable=q.kind==='pick';
+  return `<div class="code">${c.label?`<div class="cl">${esc(c.label)}</div>`:''}${c.items.map((it,i)=>{
+    let cls='tk';if(i===c.hl)cls+=' hl';
+    if(pickable){cls+=' pk';if(L.sel===i)cls+=' sel';if(L.checked){if(i===q.answer)cls+=' right';else if(L.sel===i)cls+=' wrong'}}
+    return `<span class="${cls}" ${pickable&&!L.checked?`onclick="selPick(${i})"`:''}>${esc(it.raw)}</span>`}).join('')}${pickable?'':'<span style="opacity:.5">=</span>'}</div>`;
+}
+function renderLesson(){
+  const q=L.Q[L.pos];
+  if(!q){finishLesson();return}
+  const pct=L.pos/L.Q.length*100;
+  let h=`<div class="ltop"><button class="x" onclick="quitLesson()">✕</button><div class="prog"><i style="width:${pct}%"></i></div><div class="hearts">❤️ ${L.hearts}</div></div><div class="q">`;
+  h+=`<div class="qt">${esc(q.tag||'')}</div><div class="qp">${esc(q.prompt)}</div>`;
+  if(q.target)h+=`<div class="target">${esc(q.target)}</div>`;
+  (q.codes||[]).forEach(c=>h+=codeHTML(c,q));
+  if(q.kind==='mc'){
+    h+='<div class="opts">'+q.options.map((o,i)=>{let cls='opt'+(q.mono?' mono':'');if(L.sel===i)cls+=' sel';if(L.checked){if(o.correct)cls+=' right';else if(L.sel===i)cls+=' wrong'}
+      return `<button class="${cls}" ${L.checked?'':`onclick="selOpt(${i})"`}>${esc(o.label)}</button>`}).join('')+'</div>';
+  }
+  if(q.kind==='write'){
+    h+=`<input id="win" class="inp" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ex.: ${q.tag.startsWith('Vento')?'14012KT':q.tag.startsWith('Nuvens')?'BKN008':'...'}" ${L.checked?'disabled':''} value="${esc(L.typed||'')}" oninput="L.typed=this.value;updFoot()" onkeydown="if(event.key==='Enter'&&L.typed){check()}">`;
+  }
+  h+='</div>';
+  h+=footHTML(q);
+  $('#app').innerHTML=h;
+  if(q.kind==='write'&&!L.checked){const w=$('#win');w&&w.focus()}
+}
+function footHTML(q){
+  if(!L.checked){
+    const can=q.kind==='write'?!!(L.typed&&L.typed.trim()):L.sel!==null;
+    return `<div class="foot" id="foot"><div><button class="btn ok" id="chk" ${can?'':'disabled'} onclick="check()">Verificar</button></div></div>`;
+  }
+  const g=L.wasRight;
+  return `<div class="foot ${g?'good':'badf'}"><div class="fb"><h4>${g?pick(['Mandou bem! ✈️','Correto!','Isso aí, comandante!','Perfeito!']):'Não foi dessa vez'}</h4><p>${q.explain||''}</p><button class="btn ${g?'ok':'bad'}" onclick="next()">Continuar</button></div></div>`;
+}
+function updFoot(){const b=$('#chk');if(!b)return;const q=L.Q[L.pos];b.disabled=q.kind==='write'?!(L.typed&&L.typed.trim()):L.sel===null}
+function selOpt(i){L.sel=i;renderLesson()}
+function selPick(i){L.sel=i;renderLesson()}
+function check(){
+  const q=L.Q[L.pos];if(L.checked)return;
+  let ok=false;
+  if(q.kind==='mc')ok=!!q.options[L.sel].correct;
+  if(q.kind==='pick')ok=L.sel===q.answer||(q.codes[0].items[L.sel]&&q.codes[0].items[L.sel].text===q.target);
+  if(q.kind==='write')ok=(L.typed||'').toUpperCase().replace(/\s+/g,' ').trim()===q.answer.toUpperCase();
+  L.checked=true;L.wasRight=ok;L.total++;
+  if(ok){if(!q.retry){L.correct++;L.xp+=1}
+    if(q.review){S.mist=S.mist.filter(m=>!(m.raw===q.review.raw&&m.idx===q.review.idx));save()}}
+  else{
+    L.hearts--;try{navigator.vibrate&&navigator.vibrate(120)}catch(e){}
+    if(q.mist&&!S.mist.some(m=>m.raw===q.mist.raw&&m.idx===q.mist.idx)){S.mist.push(q.mist);if(S.mist.length>60)S.mist.shift();save()}
+    if(L.requeue<4){L.Q.push(Object.assign({},q,{retry:true,options:q.options?shuffle(q.options):q.options}));L.requeue++}
+  }
+  renderLesson();
+}
+function next(){
+  if(L.hearts<=0){L.failed=true;finishLesson();return}
+  L.pos++;L.sel=null;L.checked=false;L.typed='';renderLesson();window.scrollTo(0,0);
+}
+function addXP(n){
+  S.xp+=n;const t=today();
+  if(S.daily.date!==t)S.daily={date:t,xp:0};S.daily.xp+=n;
+  if(S.last!==t){const y=new Date();y.setDate(y.getDate()-1);const ys=y.getFullYear()+'-'+p2(y.getMonth()+1)+'-'+p2(y.getDate());S.streak=S.last===ys?S.streak+1:1;S.last=t}
+  save();
+}
+function finishLesson(){
+  const l=L.lesson;let html;
+  const acc=L.total?Math.round(L.correct/Math.max(1,L.Q.filter(q=>!q.retry).length)*100):0;
+  if(L.failed){
+    html=`<div class="res"><div class="big">💔</div><h2>Acabaram as vidas</h2><p class="sub">Sem problema: os erros foram para a revisão. Tente de novo com códigos novos.</p>
+    <button class="btn" onclick="${l.id.startsWith('_')?'L=null;render()':`startLesson(${ALL_LESSONS.indexOf(l)})`}">Tentar de novo</button><div style="height:10px"></div><button class="btn ghost" onclick="L=null;render()">Voltar</button></div>`;
+  }else{
+    const dn=S.done[l.id]||0;
+    const bonus=(l.id.startsWith('_')?5:dn>=3?5:10)+(L.hearts===5?5:0);
+    const gained=L.xp+bonus;const r0=rankIdx(S.xp);addXP(gained);const r1=rankIdx(S.xp);
+    if(!l.id.startsWith('_'))S.done[l.id]=dn+1;save();
+    const promo=r1>r0?`<div class="card" style="background:#14233a;color:#fff;border-color:#e8b830;display:flex;gap:14px;align-items:center;text-align:left;margin-top:18px">${epaulet(RANKS[r1].s,RANKS[r1].star,40)}<div><div style="color:#e8b830;font-weight:900;font-size:13px;text-transform:uppercase;letter-spacing:.6px">Promoção!</div><div style="font-weight:900;font-size:20px">${RANKS[r1].n}</div><div style="opacity:.85;font-size:14px">${RANKS[r1].d}</div></div></div>`:'';
+    html=`<div class="res"><div class="big">${L.hearts===5?'🏆':'🎉'}</div><h2>${L.hearts===5?'Lição perfeita!':'Lição concluída!'}</h2>${promo}
+    <div class="chips"><div class="chip"><b>+${gained}</b><span>XP</span></div><div class="chip"><b>${Math.min(100,acc)}%</b><span>Acertos</span></div><div class="chip"><b>🔥${S.streak}</b><span>Sequência</span></div></div>
+    <button class="btn ok" onclick="L=null;render()">Continuar</button></div>`;
+  }
+  $('#app').innerHTML=html;
+}
+
+/* ===== decodificar ===== */
+function splitCodes(txt){
+  const t=txt.toUpperCase().replace(/\r/g,'');
+  const parts=t.split(/=|\n(?=\s*(?:\d{10}\s*-\s*)?(?:METAR|SPECI|TAF)\b)/).map(s=>s.trim()).filter(s=>s.length>8);
+  return parts;
+}
+function decView(){
+  return `<div class="wrap"><h1 class="pg">Decodificar código real</h1>
+  <p class="sub">Cole aqui um METAR, SPECI ou TAF de verdade (copie da <a href="https://redemet.decea.mil.br" target="_blank" rel="noopener">REDEMET</a> ou do <a href="https://aisweb.decea.mil.br" target="_blank" rel="noopener">AISWEB</a>). Pode colar vários de uma vez. Depois, transforme em exercício.</p>
+  <textarea id="ta" class="ta" placeholder="METAR SBPA 111800Z 14008KT 9999 FEW030 26/18 Q1014="></textarea>
+  <div class="row"><button class="btn" onclick="runDecode()">Decodificar</button><button class="btn ghost" onclick="exampleCode()">Gerar exemplo</button></div>
+  <div id="decout"></div></div>`;
+}
+function exampleCode(){$('#ta').value=genAny(pick(['metar','metar','speci','taf']));runDecode()}
+function runDecode(silent){
+  const txt=$('#ta').value;window._decText=txt;
+  const codes=splitCodes(txt);const out=$('#decout');
+  if(!codes.length){if(!silent)out.innerHTML='<p class="sub">Cole um código acima.</p>';return}
+  out.innerHTML=codes.map((c,k)=>{const rep=parseReport(c);const unk=rep.items.filter(x=>x.cat==='unk').length;
+    return `<div class="dec"><div class="hd">${esc(rep.raw)}=</div>${rep.items.map(it=>`<div class="dl ${it.cat==='unk'?'unk':''}"><div class="t">${esc(it.raw)}</div><div><div class="c">${CATS[it.cat]}${rep.type==='TAF'&&it.grp!=='Base'&&it.cat!=='mudanca'?' · em '+esc(it.grp):''}</div><div class="x2">${esc(it.text)}</div></div></div>`).join('')}
+    <div style="padding:12px 14px;border-top:1px solid var(--line)">${unk?`<p class="small" style="margin:0 0 8px">${unk} grupo(s) não reconhecido(s) ficam fora dos exercícios.</p>`:''}<div class="row" style="margin:0"><button class="btn ok" onclick="startCode(decodeURIComponent('${encodeURIComponent(rep.raw)}'))">Treinar este</button><button class="btn ghost" onclick="saveMine(decodeURIComponent('${encodeURIComponent(rep.raw)}'))">Salvar</button></div></div></div>`}).join('')
+    +(codes.length>1?`<button class="btn ghost" onclick="saveAll()">Salvar todos (${codes.length}) no Desafio misto</button>`:'');
+}
+function saveMine(raw){if(!S.mine.includes(raw)){S.mine.unshift(raw);S.mine=S.mine.slice(0,150);save()}toast('Salvo! Vai aparecer no Desafio misto')}
+function saveAll(){splitCodes($('#ta').value).forEach(c=>{const r=cleanRaw(c);if(!S.mine.includes(r))S.mine.unshift(r)});S.mine=S.mine.slice(0,150);save();toast('Códigos salvos!')}
+
+/* ===== referência ===== */
+function tbl(rows){return `<table>${rows.map(r=>`<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td></tr>`).join('')}</table>`}
+function refView(){
+  return `<div class="wrap"><h1 class="pg">Referência rápida</h1><p class="sub">Sua "cola" para consultar quando travar.</p>
+  <div class="card"><h3>Ordem dos grupos no METAR/SPECI</h3><p class="mono" style="font-size:13px;line-height:1.7;margin:0">TIPO · LOCAL · DDHHMMZ · (AUTO) · VENTO · (VAR) · VIS · (VIS MÍN) · (RVR) · TEMPO · NUVENS · T/Td · QNH · (RE..) · (WS) · (TENDÊNCIA)</p></div>
+  <div class="card"><h3>Ordem no TAF</h3><p class="mono" style="font-size:13px;line-height:1.7;margin:0">TAF · LOCAL · DDHHMMZ · VALIDADE · VENTO · VIS · TEMPO · NUVENS · TX/TN · GRUPOS DE MUDANÇA · RMK</p></div>
+  <div class="card"><h3>Vento</h3>${tbl([['14012KT','Vento de 140° com 12 kt'],['14012G25KT','... com rajadas de 25 kt'],['00000KT','Calmo'],['VRB02KT','Variável, 2 kt'],['100V170','Direção variando entre 100° e 170°']])}</div>
+  <div class="card"><h3>Visibilidade e RVR</h3>${tbl([['9999','10 km ou mais'],['0800','800 m'],['0000','Menos de 50 m'],['3000SW','Mínima de 3.000 m a sudoeste'],['CAVOK','Vis ≥10 km, nada abaixo de 5.000 ft, sem CB/TCU, sem tempo significativo'],['R11/0600U','RVR pista 11: 600 m, aumentando'],['R29/P2000','RVR acima de 2.000 m'],['R15/M0050','RVR abaixo de 50 m']])}</div>
+  <div class="card"><h3>Nuvens</h3>${tbl([['FEW','1–2/8 (poucas)'],['SCT','3–4/8 (esparsas)'],['BKN','5–7/8 (nublado) → teto'],['OVC','8/8 (encoberto) → teto'],['VV002','Céu obscurecido, vis. vertical 200 ft → teto'],['CB / TCU','Cumulonimbus / Cumulus congestus'],['NSC','Nenhuma nuvem significativa'],['NCD','Nenhuma nuvem detectada (AUTO)'],['008','Altura = 008 × 100 = 800 ft']])}</div>
+  <div class="card"><h3>Intensidade e proximidade</h3>${tbl([['-','Leve'],['(nada)','Moderada'],['+','Forte'],['VC','Vizinhanças (8–16 km)'],['RE','Recente (já parou)']])}</div>
+  <div class="card"><h3>Descritores</h3>${tbl(Object.entries(DESC))}</div>
+  <div class="card"><h3>Fenômenos</h3>${tbl(Object.entries(WXP))}</div>
+  <div class="card"><h3>Grupos de mudança (TAF)</h3>${tbl([['BECMG','Mudança gradual no período; depois a nova condição vale'],['TEMPO','Flutuações temporárias (< 1 h cada, < metade do período)'],['FM','A partir de: tudo muda e substitui o anterior'],['PROB30/40','Probabilidade de 30% ou 40%'],['TX/TN','Temperatura máxima/mínima prevista'],['NOSIG','Sem mudança significativa nas próximas 2 h (METAR)']])}</div>
+  <div class="card"><h3>Mínimos VMC (regra geral no aeródromo)</h3><p style="margin:0">Teto ≥ <b>1.500 ft</b> e visibilidade ≥ <b>5.000 m</b>. Teto = camada BKN/OVC/VV mais baixa.</p></div>
+  <div class="card"><h3>Onde pegar códigos reais</h3><p style="margin:0 0 6px"><a href="https://redemet.decea.mil.br" target="_blank" rel="noopener">REDEMET</a> (redemet.decea.mil.br) e <a href="https://aisweb.decea.mil.br" target="_blank" rel="noopener">AISWEB</a> (aisweb.decea.mil.br). Copie e cole na aba Decodificar.</p><p class="small" style="margin:0">Material de estudo. Para voo real, use sempre as fontes oficiais e o briefing completo.</p></div>
+  </div>`;
+}
+
+/* ===== perfil ===== */
+function meView(){
+  const doneN=Object.keys(S.done).length;
+  return `<div class="wrap"><h1 class="pg">Seu progresso</h1>${accountCard()}
+  <div class="big3"><div class="chip"><b>⭐ ${S.xp}</b><span>XP total</span></div><div class="chip"><b>🔥 ${S.streak}</b><span>Dias seguidos</span></div><div class="chip"><b>${doneN}/${ALL_LESSONS.length}</b><span>Lições</span></div></div>
+  ${rankCard(false)}
+  <div class="card"><h3>Hierarquia</h3>${RANKS.map((k,i)=>`<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-top:${i?'1px solid var(--line)':'0'};opacity:${S.xp>=k.x?1:.45}">${epaulet(k.s,k.star,22)}<div style="flex:1"><b>${k.n}</b><div class="small">${k.d}</div></div><div class="small" style="font-weight:800">${S.xp>=k.x?'✅':fmtN(k.x)+' XP'}</div></div>`).join('')}</div>
+  <div class="card"><h3>Meus códigos reais (${S.mine.length})</h3><p class="small" style="margin:0 0 6px">Entram no Desafio misto junto com os gerados.</p>
+  ${S.mine.length?S.mine.slice(0,40).map((m,i)=>`<div class="mine"><span>${esc(m)}</span><button onclick="S.mine.splice(${i},1);save();render()">✕</button></div>`).join(''):'<p class="small">Nenhum ainda. Cole códigos na aba Decodificar.</p>'}</div>
+  <div class="card"><h3>Backup do progresso</h3><p class="small" style="margin:0 0 10px">${USER?'Seu progresso já é salvo automaticamente na sua conta. O backup é só uma cópia extra.':'O progresso fica salvo neste aparelho/navegador. Para levar para outro, copie o código e cole lá.'}</p>
+  <div class="row" style="margin:0"><button class="btn ghost" onclick="copyBackup()">Copiar backup</button><button class="btn ghost" onclick="importBackup()">Importar</button></div></div>
+  <div class="card"><h3>Opções</h3><label style="display:flex;gap:10px;align-items:center;font-weight:700"><input type="checkbox" ${S.unlockAll?'checked':''} onchange="S.unlockAll=this.checked;save()" style="width:22px;height:22px"> Desbloquear todas as lições</label>
+  <div style="height:12px"></div><button class="btn ghost" style="color:var(--bad2)" onclick="resetAsk()">Zerar progresso</button></div></div>`;
+}
+function copyBackup(){const s=btoa(unescape(encodeURIComponent(JSON.stringify(S))));
+  try{navigator.clipboard.writeText(s).then(()=>toast('Backup copiado!'),()=>showText(s))}catch(e){showText(s)}}
+function showText(s){sheet(`<h3>Seu backup</h3><p>Selecione e copie:</p><textarea class="ta" style="min-height:100px;text-transform:none">${esc(s)}</textarea><div style="height:10px"></div><button class="btn" onclick="closeSheet()">Fechar</button>`)}
+function importBackup(){sheet(`<h3>Importar backup</h3><p>Cole o código de backup:</p><textarea id="imp" class="ta" style="min-height:100px;text-transform:none"></textarea><div style="height:10px"></div><button class="btn ok" onclick="doImport()">Importar</button>`)}
+function doImport(){try{const o=JSON.parse(decodeURIComponent(escape(atob($('#imp').value.trim()))));S=Object.assign(defState(),o);save();closeSheet();render();toast('Progresso importado!')}catch(e){toast('Código inválido')}}
+function resetAsk(){sheet(`<h3>Zerar tudo?</h3><p>XP, sequência, lições e códigos salvos serão apagados neste aparelho.</p><button class="btn bad" onclick="S=defState();save();closeSheet();render()">Zerar</button><div style="height:10px"></div><button class="btn ghost" onclick="closeSheet()">Cancelar</button>`)}
+
+initAuth();
+</script>
+</body>
+</html>
